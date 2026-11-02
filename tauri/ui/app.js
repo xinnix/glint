@@ -22,9 +22,9 @@ const I18N = {
     failedDetail: '失败详情 · {n} 项', viewLog: '查看日志 ↗', more: '还有 {n} 项…',
     checks: '检查 {n} 项', stars: '★ {n}',
     allPass: '全部检查通过',
-    tokenPresent: 'Token：{source} ✓',
-    tokenMissing: '未配置 Token（仅公共仓库，易限流）',
-    tokenSource: { env: '环境变量', keychain: '钥匙串', gh: 'gh CLI', config: '配置文件' },
+    tokenPresent: 'Token ✓（通过 GitHub 登录）',
+    tokenMissing: '未登录：仅公共仓库，限流 60 次/时',
+    loginHint: '登录后 Token 自动存入系统钥匙串；私有仓库与更高限流需要登录。',
     manageTitle: '仓库管理', reposSection: '监控仓库',
     repoInputPh: 'owner/repo，支持批量粘贴（空格/逗号/换行分隔）',
     add: '添加', importGh: '导入 gh 账号的仓库', importLocal: '扫描本地 code 目录',
@@ -38,7 +38,7 @@ const I18N = {
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
     updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
-    tokenSection: 'GitHub Token',
+    tokenSection: 'GitHub 登录',
     clientIdPh: 'OAuth App Client ID（留空使用内置默认）',
     deviceLogin: '通过 GitHub 登录', cancel: '取消',
     needClientId: '请先填写 OAuth Client ID：github.com → Settings → Developer settings → OAuth Apps 注册应用（无需 secret），把 Client ID 粘贴到这里',
@@ -52,9 +52,6 @@ const I18N = {
       NO_CLIENT_ID: '未配置 Client ID', HTTP_404: 'Client ID 无效，请检查是否复制完整',
       NO_TOKEN: '未登录且无 Token，请先通过 GitHub 登录',
     },
-    tokenInputPh: '粘贴 Personal Access Token（repo 权限即可）',
-    saveToken: '保存', tokenHint: '私有仓库或更高限流需要 Token。若已用 gh 登录会自动复用，无需手动配置。',
-    tokenSaved: 'Token 已保存', tokenSaveFailed: '保存失败：{msg}',
     justNow: '刚刚',
     err401: 'Token 无效 (401)', err403: '无权限或限流 (403)',
     err404: '仓库不存在或无权限 (404)', errNetwork: '网络错误：{msg}',
@@ -71,9 +68,9 @@ const I18N = {
     failedDetail: 'Failures · {n}', viewLog: 'View log ↗', more: '{n} more…',
     checks: '{n} checks', stars: '★ {n}',
     allPass: 'All checks passed',
-    tokenPresent: 'Token: {source} ✓',
-    tokenMissing: 'No token (public repos only, rate limited)',
-    tokenSource: { env: 'env var', keychain: 'keychain', gh: 'gh CLI', config: 'config file' },
+    tokenPresent: 'Token ✓ (signed in with GitHub)',
+    tokenMissing: 'Not signed in: public repos only, 60 req/h',
+    loginHint: 'The token is stored in your system keychain automatically. Sign-in is required for private repos and higher rate limits.',
     manageTitle: 'Manage Repositories', reposSection: 'Repositories',
     repoInputPh: 'owner/repo, bulk paste supported (space/comma/newline)',
     add: 'Add', importGh: "Import from gh account", importLocal: 'Scan local code dirs',
@@ -87,7 +84,7 @@ const I18N = {
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
     updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
-    tokenSection: 'GitHub Token',
+    tokenSection: 'GitHub Sign-in',
     clientIdPh: 'OAuth App Client ID (leave empty to use built-in default)',
     deviceLogin: 'Sign in with GitHub', cancel: 'Cancel',
     needClientId: 'Fill in the OAuth Client ID first: github.com → Settings → Developer settings → OAuth Apps → New OAuth App (no secret needed), then paste the Client ID here',
@@ -101,9 +98,6 @@ const I18N = {
       NO_CLIENT_ID: 'Client ID not configured', HTTP_404: 'Invalid Client ID, please check it',
       NO_TOKEN: 'No token: sign in with GitHub first',
     },
-    tokenInputPh: 'Paste a Personal Access Token (repo scope)',
-    saveToken: 'Save', tokenHint: 'Required for private repos / higher rate limits. Auto-reused from gh if logged in.',
-    tokenSaved: 'Token saved', tokenSaveFailed: 'Save failed: {msg}',
     justNow: 'just now',
     err401: 'Invalid token (401)', err403: 'Forbidden or rate limited (403)',
     err404: 'Repo not found or no access (404)', errNetwork: 'Network error: {msg}',
@@ -451,9 +445,7 @@ async function showManageMessage(text) {
 
 async function renderTokenInfo() {
   const info = await invoke('token_info_cmd');
-  const text = info.present
-    ? t('tokenPresent', { source: (t('tokenSource') || {})[info.source] || info.source })
-    : t('tokenMissing');
+  const text = info.present ? t('tokenPresent') : t('tokenMissing');
   document.getElementById('token-info').textContent = text;
   document.getElementById('token-manage-info').textContent = text;
 }
@@ -643,20 +635,6 @@ function bindEvents() {
       e.target.checked = !e.target.checked;
       showManageMessage(t('autostartFailed', { msg: String(err) }));
     }
-  });
-
-  document.getElementById('save-token-btn').addEventListener('click', async () => {
-    const input = document.getElementById('token-input');
-    const token = input.value.trim();
-    if (!token) return;
-    try {
-      await invoke('save_token', { token });
-      input.value = '';
-      showManageMessage(t('tokenSaved'));
-    } catch (e) {
-      showManageMessage(t('tokenSaveFailed', { msg: String(e) }));
-    }
-    renderTokenInfo();
   });
 
   document.getElementById('client-id-input').addEventListener('change', persistConfig);

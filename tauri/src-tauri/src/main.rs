@@ -77,7 +77,6 @@ struct Config {
     // alias 兼容 Swift 版（已归档）写入的 camelCase 旧字段；保存时统一输出 snake_case
     #[serde(alias = "intervalSeconds")]
     interval_seconds: u64,
-    token: String,
     #[serde(alias = "notifyOnFailure")]
     notify_on_failure: bool,
     #[serde(alias = "notifyOnSuccess")]
@@ -89,10 +88,9 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            repos: vec![],
-            interval_seconds: 30,
-            token: String::new(),
-            notify_on_failure: true,
+        repos: vec![],
+        interval_seconds: 30,
+        notify_on_failure: true,
             notify_on_success: true,
             lang: String::new(),
             oauth_client_id: String::new(),
@@ -136,7 +134,7 @@ mod config_tests {
 #[derive(Debug, Clone, Serialize)]
 struct TokenInfo {
     present: bool,
-    source: String, // env / keychain / gh / config / none
+    source: String, // keychain（GitHub 登录）/ none
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -205,76 +203,28 @@ fn save_config_file(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
-// ============ Token 解析：环境变量 → 钥匙串 → gh CLI → 配置文件 ============
-
-fn run_tool(path: &str, args: &[&str]) -> Option<String> {
-    let out = std::process::Command::new(path).args(args).output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    String::from_utf8(out.stdout)
-        .ok()
-        .map(|s| s.trim().to_string())
-}
+// ============ Token：唯一来源是「通过 GitHub 登录」（Device Flow），存系统钥匙串 ============
 
 fn keyring_entry() -> Option<keyring::Entry> {
     keyring::Entry::new("gitcistatus", "token").ok()
 }
 
-fn resolve_token(cfg_token: &str) -> Option<String> {
-    for key in ["GITHUB_TOKEN", "GH_TOKEN"] {
-        if let Ok(t) = std::env::var(key) {
-            if !t.is_empty() {
-                return Some(t);
-            }
-        }
+fn resolve_token() -> Option<String> {
+    let entry = keyring_entry()?;
+    let t = entry.get_password().ok()?;
+    if t.is_empty() {
+        None
+    } else {
+        Some(t)
     }
-    if let Some(entry) = keyring_entry() {
-        if let Ok(t) = entry.get_password() {
-            if !t.is_empty() {
-                return Some(t);
-            }
-        }
-    }
-    for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh", "gh"] {
-        if let Some(t) = run_tool(path, &["auth", "token"]) {
-            if !t.is_empty() {
-                return Some(t);
-            }
-        }
-    }
-    if !cfg_token.is_empty() {
-        return Some(cfg_token.to_string());
-    }
-    None
 }
 
-fn token_info(cfg_token: &str) -> TokenInfo {
-    for key in ["GITHUB_TOKEN", "GH_TOKEN"] {
-        if let Ok(t) = std::env::var(key) {
-            if !t.is_empty() {
-                return TokenInfo { present: true, source: "env".into() };
-            }
-        }
+fn token_info() -> TokenInfo {
+    if resolve_token().is_some() {
+        TokenInfo { present: true, source: "keychain".into() }
+    } else {
+        TokenInfo { present: false, source: "none".into() }
     }
-    if let Some(entry) = keyring_entry() {
-        if let Ok(t) = entry.get_password() {
-            if !t.is_empty() {
-                return TokenInfo { present: true, source: "keychain".into() };
-            }
-        }
-    }
-    for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh", "gh"] {
-        if let Some(t) = run_tool(path, &["auth", "token"]) {
-            if !t.is_empty() && !t.is_empty() {
-                return TokenInfo { present: true, source: "gh".into() };
-            }
-        }
-    }
-    if !cfg_token.is_empty() {
-        return TokenInfo { present: true, source: "config".into() };
-    }
-    TokenInfo { present: false, source: "none".into() }
 }
 
 // ============ GitHub 客户端（ETag 条件请求缓存） ============
@@ -448,8 +398,7 @@ struct RepoBrief {
 
 #[tauri::command]
 fn fetch_user_repos() -> Result<Vec<RepoBrief>, String> {
-    let cfg = load_config();
-    let token = resolve_token(&cfg.token).ok_or("NO_TOKEN")?;
+    let token = resolve_token().ok_or("NO_TOKEN")?;
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for page in 1..=5u32 {
@@ -1142,7 +1091,7 @@ fn poller(app: AppHandle, rx: mpsc::Receiver<()>) {
         shared.refreshing.store(true, Ordering::Relaxed);
 
         let cfg = load_config();
-        let token = resolve_token(&cfg.token);
+        let token = resolve_token();
         let light = token.is_none();
         let repos = cfg.repos.clone();
 
@@ -1301,25 +1250,12 @@ fn refresh_now(app: AppHandle) {
 
 #[tauri::command]
 fn token_info_cmd() -> TokenInfo {
-    let cfg = load_config();
-    token_info(&cfg.token)
+    token_info()
 }
 
 #[tauri::command]
 fn import_local_dir() -> Vec<String> {
     scan_local_dir()
-}
-
-#[tauri::command]
-fn save_token(app: AppHandle, token: String) -> Result<(), String> {
-    let t = token.trim().to_string();
-    if t.is_empty() {
-        return Err("empty".into());
-    }
-    let entry = keyring_entry().ok_or("keyring unavailable")?;
-    entry.set_password(&t).map_err(|e| e.to_string())?;
-    wake(&app);
-    Ok(())
 }
 
 #[tauri::command]
@@ -1617,7 +1553,6 @@ fn main() {
             token_info_cmd,
             fetch_user_repos,
             import_local_dir,
-            save_token,
             open_url,
             quit_app,
             log_js,

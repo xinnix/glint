@@ -77,7 +77,6 @@ open build/GitCIStatus.app
 {
   "repos": ["owner/repo"],
   "interval_seconds": 30,
-  "token": "",
   "notify_on_failure": true,
   "notify_on_success": true,
   "lang": "",
@@ -85,7 +84,7 @@ open build/GitCIStatus.app
 }
 ```
 
-Legacy camelCase fields written by the archived Swift version (`intervalSeconds` etc.) are read transparently and normalized to snake_case on the next save. Leave `token` empty — resolution order: `GITHUB_TOKEN`/`GH_TOKEN` env → system keychain → `gh` CLI session → config file plaintext (discouraged).
+**Sign in with GitHub is the only auth method.** The token is obtained via RFC 8628 Device Flow and lives exclusively in the system keychain — no manual PAT, no env vars, no config-file secrets. Legacy `token` fields in old config files are ignored (dropped on the next save), as are the archived Swift version's camelCase fields (`intervalSeconds` etc., normalized to snake_case on next save).
 
 ## Documentation
 

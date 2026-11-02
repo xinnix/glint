@@ -14,6 +14,7 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 - GitHub Actions 发布流水线（tag 触发构建 macOS 通用二进制 → Draft Release；签名/公证步骤已预留）
 
 ### Changed
+- **「通过 GitHub 登录」成为唯一鉴权方式**：移除手动粘贴 PAT、gh CLI 与环境变量回退，Token 只存系统钥匙串；配置文件遗留 `token` 字段被忽略（下次保存移除）
 - 移除轮询循环的逐周期 stderr 调试日志（保留启动路由信息、网络回退事件与前端错误上报）
 - 托盘 API 换用非 deprecated 的 `show_menu_on_left_click`
 

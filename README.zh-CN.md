@@ -77,7 +77,6 @@ open build/GitCIStatus.app
 {
   "repos": ["owner/repo"],
   "interval_seconds": 30,
-  "token": "",
   "notify_on_failure": true,
   "notify_on_success": true,
   "lang": "",
@@ -85,7 +84,7 @@ open build/GitCIStatus.app
 }
 ```
 
-兼容读取归档 Swift 版写入的 camelCase 旧字段（`intervalSeconds` 等），下次保存自动规范化为 snake_case。`token` 建议留空——优先级：环境变量 `GITHUB_TOKEN`/`GH_TOKEN` → 系统钥匙串 → `gh` CLI 登录态 → 配置文件明文（不推荐）。
+**「通过 GitHub 登录」是唯一鉴权方式**：Token 经 RFC 8628 Device Flow 获取，只存系统钥匙串——无手动粘贴 Token、无环境变量、无配置文件明文。旧配置里的 `token` 字段会被忽略（下次保存时移除）；归档 Swift 版的 camelCase 旧字段（`intervalSeconds` 等）兼容读取，下次保存规范化为 snake_case。
 
 ## 文档
 

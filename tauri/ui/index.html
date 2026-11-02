@@ -78,21 +78,17 @@
         </section>
 
         <section>
-          <h3 data-i18n="tokenSection">GitHub Token</h3>
+          <h3 data-i18n="tokenSection">GitHub 登录</h3>
           <div class="muted small" id="token-manage-info"></div>
-          <div class="row">
-            <input type="text" id="client-id-input" data-i18n-ph="clientIdPh" placeholder="OAuth App Client ID（github.com/settings/developers 注册，无需 secret）" />
-          </div>
           <div class="row">
             <button id="device-login-btn" data-i18n="deviceLogin">通过 GitHub 登录</button>
             <button id="device-cancel-btn" class="secondary hidden" data-i18n="cancel">取消</button>
           </div>
           <div id="device-flow-status" class="device-status hidden"></div>
           <div class="row">
-            <input type="password" id="token-input" data-i18n-ph="tokenInputPh" placeholder="粘贴 Personal Access Token（repo 权限即可）" />
-            <button id="save-token-btn" data-i18n="saveToken">保存</button>
+            <input type="text" id="client-id-input" data-i18n-ph="clientIdPh" placeholder="OAuth App Client ID（留空使用内置默认）" />
           </div>
-          <div class="muted small" data-i18n="tokenHint">私有仓库或更高限流需要 Token。若已用 gh 登录会自动复用，无需手动配置。</div>
+          <div class="muted small" data-i18n="loginHint">登录后 Token 自动存入系统钥匙串；私有仓库与更高限流需要登录。</div>
         </section>
 
         <div id="manage-message" class="message hidden"></div>
