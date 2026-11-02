@@ -37,6 +37,7 @@ const I18N = {
     autostart: '开机自启（登录时自动启动）',
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
+    updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
     tokenSection: 'GitHub Token',
     clientIdPh: 'OAuth App Client ID（留空使用内置默认）',
     deviceLogin: '通过 GitHub 登录', cancel: '取消',
@@ -85,6 +86,7 @@ const I18N = {
     autostart: 'Launch at login',
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
+    updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
     tokenSection: 'GitHub Token',
     clientIdPh: 'OAuth App Client ID (leave empty to use built-in default)',
     deviceLogin: 'Sign in with GitHub', cancel: 'Cancel',
@@ -724,6 +726,22 @@ function bindEvents() {
   }, 5000);
 }
 
+// ============ 检查更新（静默，失败不影响主功能） ============
+
+async function checkUpdate() {
+  try {
+    const info = await invoke('check_update');
+    if (!info || !info.has_update) return;
+    document.getElementById('update-text').textContent = t('updateAvailable', { v: info.latest });
+    const btn = document.getElementById('update-btn');
+    btn.textContent = t('updateDownload');
+    btn.onclick = () => invoke('open_url', { url: info.url });
+    document.getElementById('update-banner').classList.remove('hidden');
+  } catch (e) {
+    report(`check update failed: ${e}`);
+  }
+}
+
 // ============ 启动 ============
 
 async function init() {
@@ -738,6 +756,7 @@ async function init() {
     bindEvents();
     render();
     renderTokenInfo();
+    checkUpdate();
   } catch (e) {
     report(`init failed: ${e}`);
   }

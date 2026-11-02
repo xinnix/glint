@@ -32,7 +32,8 @@
 ### 分发就绪
 - [ ] Apple Developer ID 签名 + notarytool 公证（有账号后）
 - [x] DMG 发行物（2026-11-02）：bundle targets 加 dmg，本地构建即产出；Release 上传随流水线 tag 触发生效
-- [ ] Tauri updater 自动更新（公私钥、latest.json 指向 GitHub Releases、面板检查更新入口）
+- [x] 检查更新 + 一键下载（2026-11-02）：查 GitHub Releases latest、semver 三元组比对、按平台/架构定位安装包资产、面板顶部横幅（404/网络失败静默降级）。完整静默 updater 留待签名就绪
+- [ ] Tauri updater 静默更新（前置：minisign 密钥对 + Apple Developer ID 签名——macOS 未签名应用被 updater 换包后会被 Gatekeeper 拦截；latest.json 指向 GitHub Releases、面板检查更新入口改为静默安装）
 - [x] GitHub Actions 发布流水线（2026-11-02）：tag → 构建 macOS 通用二进制 → Draft Release，签名/公证步骤已注释预留
 - [ ] Homebrew Cask 提交
 

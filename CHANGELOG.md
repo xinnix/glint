@@ -5,6 +5,7 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 ## [Unreleased]
 
 ### Added
+- **检查更新**：启动时静默查询 GitHub Releases 最新版，有新版在面板顶部出横幅并一键下载对应平台安装包（零签名依赖；完整静默 updater 待 Apple 签名就绪后启用）
 - **Launch at login** toggle in Manage → 刷新与通知（std-only 实现：macOS LaunchAgent / Windows 注册表 Run / Linux XDG autostart，下次登录生效）
 - System notifications now follow app/system language（中文/English），并修复失败文案的重复计数
 - 点击 macOS 通知会激活应用并自动唤起面板（`RunEvent::Reopen`；通知插件桌面端暂无点击回调 API）

@@ -1338,6 +1338,90 @@ fn log_js(msg: String) {
     eprintln!("[js] {}", msg);
 }
 
+// ============ 检查更新（半自动：查 latest release，点击下载安装包） ============
+// 完整静默更新（Tauri updater）需要 minisign 密钥 + Apple 签名以避免 macOS 换包被 Gatekeeper 拦，
+// 签名就绪前用「横幅提示 + 打开下载」方案，零签名依赖。
+
+#[derive(Serialize)]
+struct UpdateInfo {
+    has_update: bool,
+    current: String,
+    latest: String,
+    url: String, // 安装包直链；找不到资产时退回 release 页
+}
+
+fn parse_ver(v: &str) -> (u32, u32, u32) {
+    let nums: Vec<u32> = v
+        .trim_start_matches('v')
+        .split('.')
+        .filter_map(|p| p.split('-').next().and_then(|s| s.parse().ok()))
+        .collect();
+    (
+        nums.first().copied().unwrap_or(0),
+        nums.get(1).copied().unwrap_or(0),
+        nums.get(2).copied().unwrap_or(0),
+    )
+}
+
+#[tauri::command]
+fn check_update() -> Result<Option<UpdateInfo>, String> {
+    const OWNER_REPO: &str = "xinnix/gitcistatus";
+    let current = env!("CARGO_PKG_VERSION");
+
+    // 404（还没有正式 release）与网络失败都静默降级为「无更新」，不影响主功能
+    let Ok((rel, _)) = get_json(
+        &format!("https://api.github.com/repos/{}/releases/latest", OWNER_REPO),
+        None,
+    ) else {
+        return Ok(None);
+    };
+    let Some(tag) = rel["tag_name"].as_str().filter(|t| !t.is_empty()) else {
+        return Ok(None);
+    };
+    if parse_ver(tag) <= parse_ver(current) {
+        return Ok(None);
+    }
+
+    // 按平台/架构匹配安装包资产；匹配不到就退回 release 页
+    let ext = if cfg!(target_os = "macos") {
+        ".dmg"
+    } else if cfg!(target_os = "windows") {
+        ".msi"
+    } else {
+        ".AppImage"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else {
+        ""
+    };
+    let release_page = rel["html_url"]
+        .as_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("https://github.com/{}/releases/latest", OWNER_REPO));
+    let mut url = release_page.clone();
+    if let Some(assets) = rel["assets"].as_array() {
+        for a in assets {
+            let (name, link) = (
+                a["name"].as_str().unwrap_or(""),
+                a["browser_download_url"].as_str().unwrap_or(""),
+            );
+            if name.ends_with(ext) && (arch.is_empty() || name.contains(arch)) {
+                url = link.to_string();
+                break;
+            }
+        }
+    }
+    Ok(Some(UpdateInfo {
+        has_update: true,
+        current: current.to_string(),
+        latest: tag.trim_start_matches('v').to_string(),
+        url,
+    }))
+}
+
 // ============ 开机自启（不引插件：LaunchAgent / 注册表 Run / XDG autostart） ============
 
 #[tauri::command]
@@ -1539,6 +1623,7 @@ fn main() {
             log_js,
             autostart_state,
             set_autostart_cmd,
+            check_update,
             device_flow_start,
             device_flow_abort
         ])
