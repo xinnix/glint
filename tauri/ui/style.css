@@ -246,3 +246,6 @@ button.secondary { background: var(--card); color: var(--text); border: 1px soli
 #onboarding-view { display: flex; flex-direction: column; }
 .onboard-top { display: flex; justify-content: flex-end; padding: 10px 12px 0; }
 #onboarding-view .onboarding { flex: 1; justify-content: center; padding: 0 24px 40px; }
+
+/* 登录失败提示（显示在引导视图内） */
+.device-error { color: var(--red); font-size: 12px; line-height: 1.5; word-break: break-all; }

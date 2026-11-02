@@ -600,11 +600,11 @@ fn get_json(url: &str, token: Option<&str>) -> Result<(serde_json::Value, bool),
         .get(url)
         .map(|(e, _)| e.clone());
 
-    // 主路由网络失败时自动切换回退路由重试
+    // 主路由网络失败或被限流（代理出口 IP 共享未认证限额，本机直连往往还有余量）时切回退路由重试
     let mut result = get_json_once(agent(), url, token, etag.as_deref());
-    if matches!(&result, Err(e) if e.starts_with("NETWORK")) {
+    if matches!(&result, Err(e) if e.starts_with("NETWORK") || e == "HTTP_403" || e == "HTTP_429") {
         if let Some(fb) = fallback_agent() {
-            eprintln!("[net] primary route failed, retrying via fallback");
+            eprintln!("[net] primary route failed ({result:?}), retrying via fallback");
             result = get_json_once(fb, url, token, etag.as_deref());
         }
     }

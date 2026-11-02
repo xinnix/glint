@@ -685,7 +685,8 @@ function bindEvents() {
     } catch (e) {
       deviceLoginBtn.disabled = false;
       deviceCancelBtn.classList.add('hidden');
-      showManageMessage(t('deviceFailed', { msg: localizedDeviceError(String(e)) }));
+      // 失败必须显示在当前视图内：manage-message 在管理视图，引导页看不到
+      setDeviceStatus(el('div', 'device-error', t('deviceFailed', { msg: localizedDeviceError(String(e)) })));
     }
   });
 
@@ -699,13 +700,15 @@ function bindEvents() {
     if (!ok && error === 'cancelled' && Date.now() < ignoreCancelUntil) return;
     deviceLoginBtn.disabled = false;
     deviceCancelBtn.classList.add('hidden');
-    setDeviceStatus(null);
     if (ok) {
-      showManageMessage(t('deviceSuccess'));
-      renderTokenInfo();
-      fetchUserRepos(); // 登录成功后直接展示可监控的仓库列表
+      setDeviceStatus(null);
+      renderTokenInfo(); // 登录成功：applyAuthState 自动翻到面板首页
+      fetchUserRepos();  // 并直接拉取可监控的仓库列表
     } else if (error !== 'cancelled') {
-      showManageMessage(t('deviceFailed', { msg: localizedDeviceError(error) }));
+      // 失败必须显示在引导视图内，否则用户授权后卡在引导页无任何反馈
+      setDeviceStatus(el('div', 'device-error', t('deviceFailed', { msg: localizedDeviceError(error) })));
+    } else {
+      setDeviceStatus(null);
     }
   });
 
