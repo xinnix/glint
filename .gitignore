@@ -1,0 +1,21 @@
+# 构建产物
+.build/
+build/
+target/
+*.dmg
+
+# 依赖
+node_modules/
+
+# Swift / Xcode
+*.xcodeproj
+.swiftpm
+
+# Tauri 生成物
+tauri/src-tauri/gen/schemas/
+
+# 系统
+.DS_Store
+
+# ZCode 工具产物
+.zcode/

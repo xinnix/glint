@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 面板视图 -->
+    <div id="panel-view" class="view">
+      <header>
+        <span id="overall-pill" class="pill gray"><i class="dot"></i><span id="overall-text">—</span></span>
+        <b class="title">GitCIStatus</b>
+        <span class="spacer"></span>
+        <span id="spinner" class="spinner hidden"></span>
+        <span id="last-refresh" class="muted small"></span>
+        <button id="lang-btn" class="ghost-btn" title="切换语言 / Language">EN</button>
+      </header>
+      <main id="repo-list"></main>
+      <footer>
+        <button id="manage-btn" class="ghost-btn">⚙ <span data-i18n="manage">管理</span></button>
+        <button id="refresh-btn" class="ghost-btn">⟳ <span data-i18n="refresh">刷新</span></button>
+        <span class="spacer"></span>
+        <span id="token-info" class="muted small"></span>
+        <button id="quit-btn" class="ghost-btn">⏻ <span data-i18n="quit">退出</span></button>
+      </footer>
+    </div>
+
+    <!-- 管理视图 -->
+    <div id="manage-view" class="view hidden">
+      <header>
+        <button id="back-btn" class="ghost-btn">‹ <span data-i18n="back">返回</span></button>
+        <b class="title" data-i18n="manageTitle">仓库管理</b>
+      </header>
+      <main class="manage-body">
+        <section>
+          <h3 data-i18n="reposSection">监控仓库</h3>
+          <div id="repo-manage-list"></div>
+          <div class="row">
+            <input id="new-repo-input" data-i18n-ph="repoInputPh" placeholder="owner/repo，支持批量粘贴（空格/逗号/换行分隔）" />
+            <button id="add-repo-btn" data-i18n="add">添加</button>
+          </div>
+          <div class="row">
+            <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
+            <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
+          </div>
+          <div id="repo-check-list" class="repo-check-list hidden"></div>
+          <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
+          <button id="import-local-btn" class="secondary" data-i18n="importLocal">扫描本地 code 目录</button>
+        </section>
+
+        <section>
+          <h3 data-i18n="refreshNotify">刷新与通知</h3>
+          <div class="row">
+            <label for="interval-select" data-i18n="interval">刷新间隔</label>
+            <select id="interval-select">
+              <option value="15">15s</option>
+              <option value="30">30s</option>
+              <option value="60">1min</option>
+              <option value="120">2min</option>
+              <option value="300">5min</option>
+            </select>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="notify-failure" /> <span data-i18n="notifyFailure">失败时发系统通知</span></label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="notify-success" /> <span data-i18n="notifySuccess">运行中转为通过时发通知</span></label>
+          </div>
+        </section>
+
+        <section>
+          <h3 data-i18n="tokenSection">GitHub Token</h3>
+          <div class="muted small" id="token-manage-info"></div>
+          <div class="row">
+            <input type="text" id="client-id-input" data-i18n-ph="clientIdPh" placeholder="OAuth App Client ID（github.com/settings/developers 注册，无需 secret）" />
+          </div>
+          <div class="row">
+            <button id="device-login-btn" data-i18n="deviceLogin">通过 GitHub 登录</button>
+            <button id="device-cancel-btn" class="secondary hidden" data-i18n="cancel">取消</button>
+          </div>
+          <div id="device-flow-status" class="device-status hidden"></div>
+          <div class="row">
+            <input type="password" id="token-input" data-i18n-ph="tokenInputPh" placeholder="粘贴 Personal Access Token（repo 权限即可）" />
+            <button id="save-token-btn" data-i18n="saveToken">保存</button>
+          </div>
+          <div class="muted small" data-i18n="tokenHint">私有仓库或更高限流需要 Token。若已用 gh 登录会自动复用，无需手动配置。</div>
+        </section>
+
+        <div id="manage-message" class="message hidden"></div>
+      </main>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
