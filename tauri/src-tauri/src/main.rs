@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::menu::{IsMenuItem, Menu, MenuItem, MenuEvent, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 
 mod tray_icon;
@@ -1058,24 +1058,91 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+// ============ 通知文案（按 config.lang，空则跟随系统语言） ============
+
+fn detect_lang() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        // GUI 启动不继承 shell 的 LANG，读系统区域设置
+        if let Ok(out) = std::process::Command::new("defaults").args(["read", "-g", "AppleLocale"]).output() {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                return if s.trim().to_ascii_lowercase().starts_with("en") { "en".into() } else { "zh".into() };
+            }
+        }
+    }
+    if let Ok(l) = std::env::var("LANG") {
+        if l.to_ascii_lowercase().starts_with("en") {
+            return "en".into();
+        }
+    }
+    "zh".into()
+}
+
+fn notif_lang(cfg_lang: &str) -> bool {
+    // true = 英文
+    let l = if cfg_lang.is_empty() {
+        static SYS: OnceLock<String> = OnceLock::new();
+        SYS.get_or_init(detect_lang).clone()
+    } else {
+        cfg_lang.to_string()
+    };
+    l == "en"
+}
+
+/// 通知插件桌面端无点击回调（Actions API 仅移动端）；点击通知由系统激活应用，
+/// 配合 main() 里的 RunEvent::Reopen 唤起面板，失败仓库已置顶可直接看到详情。
+fn notify_status_change(app: &AppHandle, cfg: &Config, st: &RepoState, old: &str) {
+    let en = notif_lang(&cfg.lang);
+    if st.status == "failed" && cfg.notify_on_failure {
+        let title = if en {
+            format!("❌ {} CI failed", st.repo)
+        } else {
+            format!("❌ {} CI 失败", st.repo)
+        };
+        let body = if st.failed_count > 0 {
+            if en {
+                if st.failed_count == 1 { "1 check failed".into() } else { format!("{} checks failed", st.failed_count) }
+            } else {
+                format!("{} 项检查未通过", st.failed_count)
+            }
+        } else if en {
+            "Checks failed".into()
+        } else {
+            "检查失败".into()
+        };
+        let _ = app.notification().builder().title(title).body(body).show();
+    } else if st.status == "success" && cfg.notify_on_success && matches!(old, "running" | "failed" | "error") {
+        let title = if en {
+            format!("✅ {} CI passed", st.repo)
+        } else {
+            format!("✅ {} CI 通过", st.repo)
+        };
+        let body: String = if en { "All checks passed".into() } else { "全部检查通过".into() };
+        let _ = app.notification().builder().title(title).body(body).show();
+    }
+}
+
+/// 失败 > 错误 > 运行中 > 其余；托盘菜单与面板用此优先级展示
+fn severity_rank(status: &str) -> u8 {
+    match status {
+        "failed" => 0,
+        "error" => 1,
+        "running" => 2,
+        _ => 3,
+    }
+}
+
 // ============ 轮询线程 ============
 
 fn poller(app: AppHandle, rx: mpsc::Receiver<()>) {
     let mut prev: HashMap<String, String> = HashMap::new();
     loop {
-        let cycle_start = std::time::Instant::now();
-        eprintln!("[poller] cycle start");
         let shared = app.state::<Shared>();
         shared.refreshing.store(true, Ordering::Relaxed);
 
         let cfg = load_config();
         let token = resolve_token(&cfg.token);
-        eprintln!(
-            "[poller] {} repos, token={}, light={}",
-            cfg.repos.len(),
-            if token.is_some() { "yes" } else { "no" },
-            token.is_none()
-        );
         let light = token.is_none();
         let repos = cfg.repos.clone();
 
@@ -1085,55 +1152,25 @@ fn poller(app: AppHandle, rx: mpsc::Receiver<()>) {
             let map = map.clone();
             let token = token.clone();
             handles.push(std::thread::spawn(move || {
-                let t0 = std::time::Instant::now();
                 let st = fetch_repo(&repo, token.as_deref(), light);
-                eprintln!(
-                    "[fetch] {} -> {} err={:?} ({:?})",
-                    repo,
-                    st.status,
-                    st.error_text,
-                    t0.elapsed()
-                );
                 map.lock().unwrap().insert(repo, st);
             }));
         }
         for h in handles {
             let _ = h.join();
         }
-        eprintln!("[poller] fetch phase done in {:?}", cycle_start.elapsed());
-        let states: Vec<RepoState> = repos
+        let mut states: Vec<RepoState> = repos
             .iter()
             .filter_map(|r| map.lock().unwrap().get(r).cloned())
             .collect();
+        // 失败仓库置顶（稳定排序，组内保持配置顺序），托盘菜单与面板共用此顺序
+        states.sort_by_key(|s| severity_rank(&s.status));
 
         // 状态变化通知
         for st in &states {
-            let old = prev.get(&st.repo);
-            if let Some(old) = old {
+            if let Some(old) = prev.get(&st.repo) {
                 if *old != st.status {
-                    if st.status == "failed" && cfg.notify_on_failure {
-                        let body = if st.failed_count > 0 {
-                            format!("{} 项检查未通过 · {} check(s) failed", st.failed_count, st.failed_count)
-                        } else {
-                            "检查失败 · checks failed".to_string()
-                        };
-                        let _ = app
-                            .notification()
-                            .builder()
-                            .title(format!("❌ {} CI 失败", st.repo))
-                            .body(body)
-                            .show();
-                    } else if st.status == "success"
-                        && cfg.notify_on_success
-                        && matches!(old.as_str(), "running" | "failed" | "error")
-                    {
-                        let _ = app
-                            .notification()
-                            .builder()
-                            .title(format!("✅ {} CI 通过", st.repo))
-                            .body("全部检查通过 · all checks passed")
-                            .show();
-                    }
+                    notify_status_change(&app, &cfg, st, old);
                 }
             }
             prev.insert(st.repo.clone(), st.status.clone());
@@ -1154,7 +1191,6 @@ fn poller(app: AppHandle, rx: mpsc::Receiver<()>) {
         } else {
             cfg.interval_seconds.max(10)
         };
-        eprintln!("[poller] cycle done in {:?}, sleeping {}s", cycle_start.elapsed(), secs);
         let _ = rx.recv_timeout(Duration::from_secs(secs));
     }
 }
@@ -1302,6 +1338,119 @@ fn log_js(msg: String) {
     eprintln!("[js] {}", msg);
 }
 
+// ============ 开机自启（不引插件：LaunchAgent / 注册表 Run / XDG autostart） ============
+
+#[tauri::command]
+fn autostart_state() -> bool {
+    autostart_enabled()
+}
+
+/// 写入/移除登录自启项；仅改文件，下次登录生效（不 load，避免运行中双实例）
+#[tauri::command]
+fn set_autostart_cmd(enable: bool) -> Result<(), String> {
+    set_autostart(enable)
+}
+
+#[cfg(target_os = "macos")]
+fn autostart_file() -> std::path::PathBuf {
+    let mut p = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    p.push("Library/LaunchAgents/io.github.gitcistatus.plist");
+    p
+}
+
+#[cfg(target_os = "macos")]
+fn autostart_enabled() -> bool {
+    autostart_file().exists()
+}
+
+#[cfg(target_os = "macos")]
+fn set_autostart(enable: bool) -> Result<(), String> {
+    let path = autostart_file();
+    if !enable {
+        let _ = std::fs::remove_file(&path);
+        return Ok(());
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    let plist = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.github.gitcistatus</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{}</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
+</dict>
+</plist>
+"#,
+        exe.display()
+    );
+    std::fs::write(&path, plist).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "windows")]
+const AUTOSTART_REG: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+#[cfg(target_os = "windows")]
+fn autostart_enabled() -> bool {
+    std::process::Command::new("reg")
+        .args(["query", AUTOSTART_REG, "/v", "GitCIStatus"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn set_autostart(enable: bool) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    if enable {
+        let val = format!("\"{}\"", exe.display());
+        std::process::Command::new("reg")
+            .args(["add", AUTOSTART_REG, "/v", "GitCIStatus", "/t", "REG_SZ", "/d", &val, "/f"])
+            .output()
+            .map_err(|e| e.to_string())?;
+    } else {
+        std::process::Command::new("reg")
+            .args(["delete", AUTOSTART_REG, "/v", "GitCIStatus", "/f"])
+            .output()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn autostart_file() -> std::path::PathBuf {
+    let mut p = dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"));
+    p.push("autostart/gitcistatus.desktop");
+    p
+}
+
+#[cfg(target_os = "linux")]
+fn autostart_enabled() -> bool {
+    autostart_file().exists()
+}
+
+#[cfg(target_os = "linux")]
+fn set_autostart(enable: bool) -> Result<(), String> {
+    let path = autostart_file();
+    if !enable {
+        let _ = std::fs::remove_file(&path);
+        return Ok(());
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    let entry = format!(
+        "[Desktop Entry]\nType=Application\nName=GitCIStatus\nExec=\"{}\"\nX-GNOME-Autostart-enabled=true\n",
+        exe.display()
+    );
+    std::fs::write(&path, entry).map_err(|e| e.to_string())
+}
+
 // ============ 入口 ============
 
 fn main() {
@@ -1332,7 +1481,7 @@ fn main() {
                 .icon(tray_image(142, 142, 147))
                 .tooltip("GitCIStatus")
                 .menu(&menu)
-                .menu_on_left_click(false)
+                .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| handle_menu_event(app, event))
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -1388,9 +1537,18 @@ fn main() {
             open_url,
             quit_app,
             log_js,
+            autostart_state,
+            set_autostart_cmd,
             device_flow_start,
             device_flow_abort
         ])
-        .run(tauri::generate_context!())
-        .expect("GitCIStatus 启动失败");
+        .build(tauri::generate_context!())
+        .expect("GitCIStatus 启动失败")
+        .run(|app, event| {
+            // macOS：点击系统通知会激活应用并触发 reopen；此时唤起面板，
+            // 失败仓库已置顶，一眼可见失败详情（通知插件桌面端无点击回调）
+            if let RunEvent::Reopen { .. } = event {
+                show_panel(app, false);
+            }
+        });
 }

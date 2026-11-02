@@ -34,6 +34,9 @@ const I18N = {
     noMatch: '没有匹配的仓库', emptyFetched: '未拉取到仓库', fetchFailed: '拉取失败：{msg}',
     refreshNotify: '刷新与通知', interval: '刷新间隔',
     notifyFailure: '失败时发系统通知', notifySuccess: '运行中转为通过时发通知',
+    autostart: '开机自启（登录时自动启动）',
+    autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
+    autostartFailed: '设置失败：{msg}',
     tokenSection: 'GitHub Token',
     clientIdPh: 'OAuth App Client ID（留空使用内置默认）',
     deviceLogin: '通过 GitHub 登录', cancel: '取消',
@@ -79,6 +82,9 @@ const I18N = {
     noMatch: 'No matching repos', emptyFetched: 'No repos found', fetchFailed: 'Fetch failed: {msg}',
     refreshNotify: 'Refresh & Notifications', interval: 'Interval',
     notifyFailure: 'Notify on failure', notifySuccess: 'Notify when running → pass',
+    autostart: 'Launch at login',
+    autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
+    autostartFailed: 'Failed to set: {msg}',
     tokenSection: 'GitHub Token',
     clientIdPh: 'OAuth App Client ID (leave empty to use built-in default)',
     deviceLogin: 'Sign in with GitHub', cancel: 'Cancel',
@@ -418,6 +424,7 @@ async function loadManage() {
   document.getElementById('interval-select').value = String(currentConfig.interval_seconds);
   document.getElementById('notify-failure').checked = currentConfig.notify_on_failure;
   document.getElementById('notify-success').checked = currentConfig.notify_on_success;
+  document.getElementById('autostart').checked = await invoke('autostart_state');
   document.getElementById('client-id-input').value = currentConfig.oauth_client_id || '';
   renderManageRepos(currentConfig);
   renderCheckList(); // 保留上次拉取的仓库列表
@@ -625,6 +632,16 @@ function bindEvents() {
   document.getElementById('interval-select').addEventListener('change', persistConfig);
   document.getElementById('notify-failure').addEventListener('change', persistConfig);
   document.getElementById('notify-success').addEventListener('change', persistConfig);
+
+  document.getElementById('autostart').addEventListener('change', async (e) => {
+    try {
+      await invoke('set_autostart_cmd', { enable: e.target.checked });
+      showManageMessage(t(e.target.checked ? 'autostartOn' : 'autostartOff'));
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      showManageMessage(t('autostartFailed', { msg: String(err) }));
+    }
+  });
 
   document.getElementById('save-token-btn').addEventListener('click', async () => {
     const input = document.getElementById('token-input');

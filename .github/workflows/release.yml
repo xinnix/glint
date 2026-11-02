@@ -1,0 +1,66 @@
+name: Release
+
+# 打 tag（v*）触发：构建 macOS 通用二进制（Apple Silicon + Intel），DMG 上传到 Draft Release
+# 签名与公证待开发者账号就绪后启用（见下方注释块）
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 签名就绪后取消注释：导入 Developer ID 证书
+      # - name: Import signing certificate
+      #   env:
+      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}        # base64 的 .p12
+      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      #   run: |
+      #     echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+      #     security create-keychain -p "" build.keychain
+      #     security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple-signing -k "" build.keychain
+      #     security default-keychain -s build.keychain
+
+      - name: Build universal app
+        working-directory: tauri
+        run: |
+          npm ci
+          npx tauri build --target universal-apple-darwin
+
+      # 公证就绪后取消注释（需 APPLE_ID / APPLE_PASSWORD[app-specific] / APPLE_TEAM_ID secrets）
+      # - name: Notarize
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #   run: |
+      #     APP="tauri/src-tauri/target/universal-apple-darwin/release/bundle/macos/GitCIStatus.app"
+      #     codesign --deep --force --options runtime --sign "Developer ID Application: <NAME> (<TEAMID>)" "$APP"
+      #     ditto -c -k --keepParent "$APP" GitCIStatus.zip
+      #     xcrun notarytool submit GitCIStatus.zip --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+      #     xcrun stapler staple "$APP"
+
+      - name: Upload to draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            tauri/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg

@@ -22,23 +22,23 @@
 目标：macOS 上达到「发给陌生开发者能装、能长期用、能自动更新」的产品水准。
 
 ### 体验补齐
-- [ ] 通知点击跳转：Tauri 版通知点击打开对应仓库/运行页（参照 Swift 版 Notifier 行为）
-- [ ] 通知文案双语化：Rust 侧通知文案按 `config.lang` 输出，修复「2 项检查未通过 · 2 check(s) failed」重复计数格式
-- [ ] 开机自启：集成 tauri-plugin-autostart，管理窗口加开关
+- [x] 通知点击唤起面板（2026-11-02）：通知插件桌面端无点击回调（Actions API 仅移动端），落地为 `RunEvent::Reopen` 唤起面板 + 失败仓库置顶（面板与托盘菜单）；直达 URL 跳转留待后续评估原生 delegate 方案
+- [x] 通知文案双语化（2026-11-02）：按 `config.lang`（空则跟随系统）输出，修复重复计数文案
+- [x] 开机自启（2026-11-02）：不引插件，std-only 实现（macOS LaunchAgent / Windows 注册表 Run / Linux XDG autostart），管理窗口开关
 - [ ] 托盘图标深浅色适配：macOS template image / 深色模式
-- [ ] 稳定性清理：移除生产路径 `eprintln!` 调试日志；限流/网络错误状态在面板可见（紫色态已有，补充文案与恢复提示）
+- [x] 稳定性清理（2026-11-02）：移除轮询逐周期 `eprintln!` 调试日志、换用非 deprecated 托盘 API；限流/网络错误面板文案与恢复提示待补
 - [ ] 应用图标定稿：自绘产品 Logo（1024px → tauri icon 全套）
 
 ### 分发就绪
 - [ ] Apple Developer ID 签名 + notarytool 公证（有账号后）
-- [ ] DMG 发行物 + GitHub Release 上传
+- [x] DMG 发行物（2026-11-02）：bundle targets 加 dmg，本地构建即产出；Release 上传随流水线 tag 触发生效
 - [ ] Tauri updater 自动更新（公私钥、latest.json 指向 GitHub Releases、面板检查更新入口）
-- [ ] GitHub Actions 发布流水线：打 tag → 构建 → 签名 → Draft Release
+- [x] GitHub Actions 发布流水线（2026-11-02）：tag → 构建 macOS 通用二进制 → Draft Release，签名/公证步骤已注释预留
 - [ ] Homebrew Cask 提交
 
 ### 门面
-- [ ] README 英文化（EN 主体 + 中文链接）、GIF 演示、截图、badges
-- [ ] CHANGELOG.md 起始
+- [x] README 英文化（2026-11-02）：EN 主体 + [README.zh-CN.md]；GIF 演示、截图、badges 待补
+- [x] CHANGELOG.md 起始（2026-11-02）
 
 **验收**：陌生开发者在干净 macOS 上五分钟内完成 安装 → 登录 → 勾仓库 → 收到通知 全流程；release 后应用能收到更新提示并升级成功。
 

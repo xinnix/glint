@@ -1,72 +1,77 @@
 # GitCIStatus
 
-**驻守系统托盘的 GitHub CI 状态仪表盘** —— 不用打开网页，看一眼托盘颜色就知道 CI 过没过；失败时不用开网页就能定位到失败的 job ▸ step。
+English | [简体中文](README.zh-CN.md)
 
-> Push 后放心切走干别的：红了会叫你，点开就能修。
+**A tray-resident GitHub CI status dashboard** — no more opening the browser to check if CI passed. One glance at the tray icon tells you everything; when something fails, drill down to the failing job ▸ step without ever opening a web page.
 
-<!-- TODO(M1): 截图/动图占位——推 GIF：push → 托盘变红 → 点开看失败 step → 一键跳日志 -->
+> Push, switch away, and relax: it will shout when things go red, and open it to fix.
 
-## 为什么
+<!-- TODO(M1): screenshot/GIF placeholder — push → tray turns red → open to see the failing step → jump to logs -->
 
-在 GitHub 上跑 CI，每次确认结果都要切浏览器、找仓库、点 Actions、等加载。GitCIStatus 把这件事压缩成一次眼动：托盘 🟢 没事继续干活，🔴 有事先修，点开直接看是哪个 job 的哪个 step 挂了。
+## Why
 
-免费开源（MIT），纯本地运行、无服务器、无遥测，Token 存系统钥匙串。
+Checking CI on GitHub means switching to the browser, finding the repo, clicking Actions, and waiting for it to load — every single time. GitCIStatus compresses that into one glance: tray green, keep working; tray red, fix it first, with the exact failing job ▸ step one click away.
 
-## 功能
+Free and open source (MIT). Runs entirely locally — no server, no telemetry, token stored in the system keychain.
 
-- **托盘五态圆点**（聚合所有监控仓库的最差状态）：
-  - 🟢 绿：全部通过 · 🔴 红+数字：有失败（数字=失败仓库数） · 🟠 橙：有运行中 CI
-  - ⚪ 灰：仓库无 CI / 无数据 · 🟣 紫空心：API 错误（Token 失效、限流等）
-- **点击弹出面板**，每个仓库一张折叠卡片，展开可见：
-  - CI 状态徽章、检查统计（如「检查 8 项：✗ 1 ✓ 6 ⊘ 1」）、默认分支最新提交
-  - **失败详情**：具体失败的 job ▸ step（如 `test ▸ Run tests`）、耗时、「查看日志」直达
-  - 最近 4 次运行、PR / Issues / Stars 快捷入口
-- **系统通知**：失败立刻通知；「运行中 → 通过」也通知（均可关）
-- **零配置登录**：RFC 8628 Device Flow 浏览器授权（`gh auth login --web` 同款），内置 Client ID，登录后直接勾选要监控的仓库
-- **仓库管理**：拉取自己的仓库复选勾选（过滤 fork/archived）、手动批量粘贴、扫描本地目录（可选）
-- 中英双语界面（跟随系统，可手动切换）
+## Features
 
-## 平台支持
+- **Five-state tray dot** (aggregated worst status across all monitored repos):
+  - 🟢 green: all passing · 🔴 red + count: failures (count = failing repos) · 🟠 orange: CI running
+  - ⚪ gray: no CI / no data · 🟣 purple hollow: API error (bad token, rate limited, etc.)
+- **Click to open the panel** — one collapsible card per repo:
+  - CI status badge, check summary (e.g. "8 checks: ✗ 1 ✓ 6 ⊘ 1"), latest commit on the default branch
+  - **Failure details**: the exact failing job ▸ step (e.g. `test ▸ Run tests`), duration, direct "View log" link
+  - Last 4 workflow runs, PR / Issues / Stars shortcuts
+  - Failing repos automatically sorted to the top
+- **System notifications**: instant on failure; also on running → pass (each toggleable, localized to your language)
+  - Clicking a macOS notification brings up the panel with failure details
+- **Zero-config sign-in**: RFC 8628 Device Flow browser authorization (same as `gh auth login --web`), built-in Client ID, then tick the repos you want to monitor
+- **Repository management**: fetch your repos into a checklist (forks/archived filtered), bulk paste, optional local directory scan
+- **Launch at login**: one toggle in Manage → Refresh & Notifications (applies at next sign-in)
+- Bilingual UI (zh/en, follows system language, manually switchable)
 
-| 平台 | 状态 |
-|------|------|
-| macOS | ✅ v1.0 首发平台（当前开发版可用） |
-| Linux | 🚧 v1.x（deb / AppImage） |
-| Windows | 🚧 v1.x（MSI） |
+## Platforms
 
-## 快速上手
+| Platform | Status |
+|----------|--------|
+| macOS | ✅ v1.0 launch platform (current dev builds usable) |
+| Linux | 🚧 v1.x (deb / AppImage) |
+| Windows | 🚧 v1.x (MSI) |
 
-1. 启动应用 → 托盘出现圆点
-2. 打开「管理」→ 点「通过 GitHub 登录」（浏览器授权，无需手动填 Token）
-3. 从「⟳ 拉取我的仓库」列表勾选要监控的仓库，即时生效
-4. 完成。之后 CI 状态变化托盘即变，失败会弹通知
+## Quick start
 
-私有仓库需要 Token（登录即得）。公共仓库无 Token 也能用，限流 60 次/小时，应用自动放慢到 4 分钟一刷；带 Token 限额 5000 次/小时，且全部请求走 ETag 条件查询，无变化（304）不耗限额。
+1. Launch the app → a dot appears in the tray
+2. Open **Manage** → **Sign in with GitHub** (browser authorization, no manual token needed)
+3. Tick repos from **⟳ Fetch my repos** — changes apply instantly
+4. Done. From now on the tray reflects CI status and failures pop a notification
 
-## 构建
+Private repos need a token (sign-in provides one). Public repos work without a token at 60 req/h — the app automatically slows down to one poll per 4 minutes; with a token it's 5000 req/h, and every request is an ETag conditional request, so unchanged responses (304) don't count against the limit.
 
-主线为跨平台版（Tauri 2，Rust + 系统 WebView，前端无构建步骤）：
+## Build
+
+The product mainline is the cross-platform version (Tauri 2, Rust + system WebView, no frontend build step):
 
 ```bash
 cd tauri
-npm install       # 仅安装 @tauri-apps/cli
-npx tauri dev     # 调试运行
-npx tauri build   # 产物在 src-tauri/target/release/bundle/
+npm install       # only installs @tauri-apps/cli
+npx tauri dev     # run in debug mode
+npx tauri build   # outputs to src-tauri/target/release/bundle/ (.app + DMG)
 ```
 
-Linux 需 `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev` 等系统依赖；Windows 需 WebView2（系统自带）。
+On Linux, install `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev` etc.; on Windows, WebView2 ships with the OS.
 
-原生 macOS Swift 版已归档（停止新功能，仅维护），仍可构建：
+The native macOS Swift version is archived (feature-frozen, maintenance only) but still builds:
 
 ```bash
-swift run             # 调试运行（无 .app 包时通知不可用）
+swift run             # debug run (notifications unavailable without the .app bundle)
 ./scripts/build-app.sh
 open build/GitCIStatus.app
 ```
 
-## 配置
+## Configuration
 
-`~/.config/gitcistatus/config.json`（自动设为 0600）：
+`~/.config/gitcistatus/config.json` (permissions set to 0600 automatically):
 
 ```json
 {
@@ -80,16 +85,17 @@ open build/GitCIStatus.app
 }
 ```
 
-兼容读取归档 Swift 版写入的 camelCase 旧字段（`intervalSeconds` 等），下次保存自动规范化为 snake_case。`token` 建议留空——优先级：环境变量 `GITHUB_TOKEN`/`GH_TOKEN` → 系统钥匙串 → `gh` CLI 登录态 → 配置文件明文（不推荐）。
+Legacy camelCase fields written by the archived Swift version (`intervalSeconds` etc.) are read transparently and normalized to snake_case on the next save. Leave `token` empty — resolution order: `GITHUB_TOKEN`/`GH_TOKEN` env → system keychain → `gh` CLI session → config file plaintext (discouraged).
 
-## 文档
+## Documentation
 
-- [产品方案](docs/PRODUCT.md) — 定位、目标用户、竞品对比、功能地图
-- [ROADMAP](docs/ROADMAP.md) — 里程碑与验收标准
+- [Product design](docs/PRODUCT.md) — positioning, users, competitive landscape, feature map (中文)
+- [ROADMAP](docs/ROADMAP.md) — milestones and acceptance criteria (中文)
+- [CHANGELOG](CHANGELOG.md)
 
-## 贡献
+## Contributing
 
-Issue / PR 欢迎提交。架构刻意保持极简：Rust 后端、前端纯 HTML/JS/CSS 无构建链，改动门槛低。提交前请跑 `npx tauri build` 确认可构建。
+Issues and PRs welcome. The architecture is intentionally minimal: a Rust backend and a plain HTML/JS/CSS frontend with no build chain. Please run `npx tauri build` before submitting.
 
 ## License
 
