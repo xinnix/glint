@@ -222,3 +222,22 @@ button.secondary { background: var(--card); color: var(--text); border: 1px soli
 }
 .update-banner span { color: var(--text); }
 .update-banner button { margin-left: auto; }
+
+/* 设置页两态：未登录 onboarding / 已登录内容 */
+.onboarding {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 34px 18px 24px; text-align: center;
+}
+.onboard-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--green) 14%, transparent);
+}
+.onboarding h3 { margin: 0; font-size: 14px; color: var(--text); }
+.onboarding p { margin: 0; max-width: 280px; line-height: 1.55; }
+.row.center { justify-content: center; }
+.onboard-advanced { width: 100%; margin-top: 6px; }
+.onboard-advanced summary { cursor: pointer; color: var(--text-2); font-size: 11px; }
+.onboard-advanced input { width: 100%; margin-top: 8px; }
+.auth-status-row { margin-top: 2px; }
+.auth-status-row button { margin-left: auto; }

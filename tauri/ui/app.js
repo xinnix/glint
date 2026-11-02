@@ -24,7 +24,10 @@ const I18N = {
     allPass: '全部检查通过',
     tokenPresent: 'Token ✓（通过 GitHub 登录）',
     tokenMissing: '未登录：仅公共仓库，限流 60 次/时',
-    loginHint: '登录后 Token 自动存入系统钥匙串；私有仓库与更高限流需要登录。',
+    onboardTitle: '通过 GitHub 登录，开始监控',
+    onboardDesc: '登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。',
+    advancedClientId: '高级：自定义 OAuth App Client ID',
+    relogin: '重新登录',
     manageTitle: '仓库管理', reposSection: '监控仓库',
     repoInputPh: 'owner/repo，支持批量粘贴（空格/逗号/换行分隔）',
     add: '添加', importGh: '导入 gh 账号的仓库', importLocal: '扫描本地 code 目录',
@@ -38,7 +41,6 @@ const I18N = {
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
     updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
-    tokenSection: 'GitHub 登录',
     clientIdPh: 'OAuth App Client ID（留空使用内置默认）',
     deviceLogin: '通过 GitHub 登录', cancel: '取消',
     needClientId: '请先填写 OAuth Client ID：github.com → Settings → Developer settings → OAuth Apps 注册应用（无需 secret），把 Client ID 粘贴到这里',
@@ -70,7 +72,10 @@ const I18N = {
     allPass: 'All checks passed',
     tokenPresent: 'Token ✓ (signed in with GitHub)',
     tokenMissing: 'Not signed in: public repos only, 60 req/h',
-    loginHint: 'The token is stored in your system keychain automatically. Sign-in is required for private repos and higher rate limits.',
+    onboardTitle: 'Sign in with GitHub to start monitoring',
+    onboardDesc: 'Pick repositories to watch (private ones included) with higher rate limits. The token stays in your system keychain — no server, no telemetry.',
+    advancedClientId: 'Advanced: custom OAuth App Client ID',
+    relogin: 'Sign in again',
     manageTitle: 'Manage Repositories', reposSection: 'Repositories',
     repoInputPh: 'owner/repo, bulk paste supported (space/comma/newline)',
     add: 'Add', importGh: "Import from gh account", importLocal: 'Scan local code dirs',
@@ -84,7 +89,6 @@ const I18N = {
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
     updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
-    tokenSection: 'GitHub Sign-in',
     clientIdPh: 'OAuth App Client ID (leave empty to use built-in default)',
     deviceLogin: 'Sign in with GitHub', cancel: 'Cancel',
     needClientId: 'Fill in the OAuth Client ID first: github.com → Settings → Developer settings → OAuth Apps → New OAuth App (no secret needed), then paste the Client ID here',
@@ -443,11 +447,18 @@ async function showManageMessage(text) {
   showManageMessage._timer = setTimeout(() => box.classList.add('hidden'), 4000);
 }
 
+// 设置页两态：未登录只展示登录引导，登录后展示仓库与参数
+function applyAuthState(loggedIn) {
+  document.getElementById('auth-onboarding').classList.toggle('hidden', loggedIn);
+  document.getElementById('manage-main').classList.toggle('hidden', !loggedIn);
+}
+
 async function renderTokenInfo() {
   const info = await invoke('token_info_cmd');
   const text = info.present ? t('tokenPresent') : t('tokenMissing');
   document.getElementById('token-info').textContent = text;
   document.getElementById('token-manage-info').textContent = text;
+  applyAuthState(info.present);
 }
 
 function switchView(view) {
@@ -638,6 +649,9 @@ function bindEvents() {
   });
 
   document.getElementById('client-id-input').addEventListener('change', persistConfig);
+
+  // 重新登录：回到登录引导态（复用 onboarding 的登录按钮与状态展示）
+  document.getElementById('relogin-btn').addEventListener('click', () => applyAuthState(false));
 
   const deviceLoginBtn = document.getElementById('device-login-btn');
   const deviceCancelBtn = document.getElementById('device-cancel-btn');
