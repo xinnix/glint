@@ -241,3 +241,8 @@ button.secondary { background: var(--card); color: var(--text); border: 1px soli
 .onboard-advanced input { width: 100%; margin-top: 8px; }
 .auth-status-row { margin-top: 2px; }
 .auth-status-row button { margin-left: auto; }
+
+/* 登录引导视图（面板首页态） */
+#onboarding-view { display: flex; flex-direction: column; }
+.onboard-top { display: flex; justify-content: flex-end; padding: 10px 12px 0; }
+#onboarding-view .onboarding { flex: 1; justify-content: center; padding: 0 24px 40px; }

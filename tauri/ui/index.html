@@ -7,6 +7,27 @@
 </head>
 <body>
   <div id="app">
+    <!-- 登录引导视图（未登录时全屏展示） -->
+    <div id="onboarding-view" class="view hidden">
+      <div class="onboard-top">
+        <button id="onboard-lang-btn" class="ghost-btn" title="切换语言 / Language">EN</button>
+      </div>
+      <div class="onboarding">
+        <div class="onboard-dot"></div>
+        <h3 data-i18n="onboardTitle">通过 GitHub 登录，开始监控</h3>
+        <p class="muted small" data-i18n="onboardDesc">登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。</p>
+        <div class="row center">
+          <button id="device-login-btn" data-i18n="deviceLogin">通过 GitHub 登录</button>
+          <button id="device-cancel-btn" class="secondary hidden" data-i18n="cancel">取消</button>
+        </div>
+        <div id="device-flow-status" class="device-status hidden"></div>
+        <details class="onboard-advanced">
+          <summary data-i18n="advancedClientId">高级：自定义 OAuth App Client ID</summary>
+          <input type="text" id="client-id-input" data-i18n-ph="clientIdPh" placeholder="OAuth App Client ID（留空使用内置默认）" />
+        </details>
+      </div>
+    </div>
+
     <!-- 面板视图 -->
     <div id="panel-view" class="view">
       <header>
@@ -38,67 +59,48 @@
         <b class="title" data-i18n="manageTitle">仓库管理</b>
       </header>
       <main class="manage-body">
-        <!-- 未登录：引导登录 -->
-        <div id="auth-onboarding" class="onboarding">
-          <div class="onboard-dot"></div>
-          <h3 data-i18n="onboardTitle">通过 GitHub 登录，开始监控</h3>
-          <p class="muted small" data-i18n="onboardDesc">登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。</p>
-          <div class="row center">
-            <button id="device-login-btn" data-i18n="deviceLogin">通过 GitHub 登录</button>
-            <button id="device-cancel-btn" class="secondary hidden" data-i18n="cancel">取消</button>
+        <section>
+          <h3 data-i18n="reposSection">监控仓库</h3>
+          <div id="repo-manage-list"></div>
+          <div class="row">
+            <input id="new-repo-input" data-i18n-ph="repoInputPh" placeholder="owner/repo，支持批量粘贴（空格/逗号/换行分隔）" />
+            <button id="add-repo-btn" data-i18n="add">添加</button>
           </div>
-          <div id="device-flow-status" class="device-status hidden"></div>
-          <details class="onboard-advanced">
-            <summary data-i18n="advancedClientId">高级：自定义 OAuth App Client ID</summary>
-            <input type="text" id="client-id-input" data-i18n-ph="clientIdPh" placeholder="OAuth App Client ID（留空使用内置默认）" />
-          </details>
-        </div>
-
-        <!-- 已登录：仓库与参数 -->
-        <div id="manage-main" class="hidden">
-          <section>
-            <h3 data-i18n="reposSection">监控仓库</h3>
-            <div id="repo-manage-list"></div>
-            <div class="row">
-              <input id="new-repo-input" data-i18n-ph="repoInputPh" placeholder="owner/repo，支持批量粘贴（空格/逗号/换行分隔）" />
-              <button id="add-repo-btn" data-i18n="add">添加</button>
-            </div>
-            <div class="row">
-              <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
-              <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
-            </div>
-            <div id="repo-check-list" class="repo-check-list hidden"></div>
-            <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
-            <button id="import-local-btn" class="secondary" data-i18n="importLocal">扫描本地 code 目录</button>
-          </section>
-
-          <section>
-            <h3 data-i18n="refreshNotify">刷新与通知</h3>
-            <div class="row">
-              <label for="interval-select" data-i18n="interval">刷新间隔</label>
-              <select id="interval-select">
-                <option value="15">15s</option>
-                <option value="30">30s</option>
-                <option value="60">1min</option>
-                <option value="120">2min</option>
-                <option value="300">5min</option>
-              </select>
-            </div>
-            <div class="row">
-              <label><input type="checkbox" id="notify-failure" /> <span data-i18n="notifyFailure">失败时发系统通知</span></label>
-            </div>
-            <div class="row">
-              <label><input type="checkbox" id="notify-success" /> <span data-i18n="notifySuccess">运行中转为通过时发通知</span></label>
-            </div>
-            <div class="row">
-              <label><input type="checkbox" id="autostart" /> <span data-i18n="autostart">开机自启（登录时自动启动）</span></label>
-            </div>
-          </section>
-
-          <div class="row auth-status-row">
-            <span id="token-manage-info" class="muted small"></span>
-            <button id="relogin-btn" class="ghost-btn" data-i18n="relogin">重新登录</button>
+          <div class="row">
+            <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
+            <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
           </div>
+          <div id="repo-check-list" class="repo-check-list hidden"></div>
+          <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
+          <button id="import-local-btn" class="secondary" data-i18n="importLocal">扫描本地 code 目录</button>
+        </section>
+
+        <section>
+          <h3 data-i18n="refreshNotify">刷新与通知</h3>
+          <div class="row">
+            <label for="interval-select" data-i18n="interval">刷新间隔</label>
+            <select id="interval-select">
+              <option value="15">15s</option>
+              <option value="30">30s</option>
+              <option value="60">1min</option>
+              <option value="120">2min</option>
+              <option value="300">5min</option>
+            </select>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="notify-failure" /> <span data-i18n="notifyFailure">失败时发系统通知</span></label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="notify-success" /> <span data-i18n="notifySuccess">运行中转为通过时发通知</span></label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="autostart" /> <span data-i18n="autostart">开机自启（登录时自动启动）</span></label>
+          </div>
+        </section>
+
+        <div class="row auth-status-row">
+          <span id="token-manage-info" class="muted small"></span>
+          <button id="relogin-btn" class="ghost-btn" data-i18n="relogin">重新登录</button>
         </div>
 
         <div id="manage-message" class="message hidden"></div>

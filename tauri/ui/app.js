@@ -145,6 +145,7 @@ function applyI18n() {
     el.placeholder = t(el.dataset.i18nPh);
   });
   document.getElementById('lang-btn').textContent = lang === 'zh' ? 'EN' : '中文';
+  document.getElementById('onboard-lang-btn').textContent = lang === 'zh' ? 'EN' : '中文';
 }
 
 // ============ 时间显示 ============
@@ -447,10 +448,16 @@ async function showManageMessage(text) {
   showManageMessage._timer = setTimeout(() => box.classList.add('hidden'), 4000);
 }
 
-// 设置页两态：未登录只展示登录引导，登录后展示仓库与参数
-function applyAuthState(loggedIn) {
-  document.getElementById('auth-onboarding').classList.toggle('hidden', loggedIn);
-  document.getElementById('manage-main').classList.toggle('hidden', !loggedIn);
+// 登录态决定视图：未登录全屏引导，登录成功自动进入面板首页；
+// 「重新登录」走 applyAuthState(false) 回引导页，取消授权后凭旧会话返回首页
+function applyAuthState(present) {
+  const was = authed;
+  authed = present;
+  if (!present) {
+    switchView('onboarding');
+  } else if (!was || currentView === 'onboarding') {
+    switchView('panel');
+  }
 }
 
 async function renderTokenInfo() {
@@ -461,9 +468,16 @@ async function renderTokenInfo() {
   applyAuthState(info.present);
 }
 
+let currentView = 'panel';
+let authed = false;
+
 function switchView(view) {
+  // 未登录时强制停留在登录引导页
+  if (view !== 'onboarding' && !authed) view = 'onboarding';
+  currentView = view;
   document.getElementById('panel-view').classList.toggle('hidden', view !== 'panel');
   document.getElementById('manage-view').classList.toggle('hidden', view !== 'manage');
+  document.getElementById('onboarding-view').classList.toggle('hidden', view !== 'onboarding');
   if (view === 'manage') loadManage();
 }
 
@@ -580,14 +594,16 @@ function bindEvents() {
   document.getElementById('refresh-btn').addEventListener('click', () => invoke('refresh_now'));
   document.getElementById('quit-btn').addEventListener('click', () => invoke('quit_app'));
 
-  document.getElementById('lang-btn').addEventListener('click', async () => {
+  const toggleLang = async () => {
     lang = lang === 'zh' ? 'en' : 'zh';
     if (currentConfig) {
       currentConfig.lang = lang;
       await invoke('save_config', { config: currentConfig });
     }
     render();
-  });
+  };
+  document.getElementById('lang-btn').addEventListener('click', toggleLang);
+  document.getElementById('onboard-lang-btn').addEventListener('click', toggleLang);
 
   document.getElementById('add-repo-btn').addEventListener('click', async () => {
     const input = document.getElementById('new-repo-input');
