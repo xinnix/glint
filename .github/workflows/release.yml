@@ -52,15 +52,22 @@ jobs:
           node-version: 22
 
       # CI 上没有 tauri.conf.json 指定的 GlintLocal 签名身份，bundler 的 codesign 会失败。
-      # 现造一枚同名自签证书（LibreSSL 兼容的旧式 p12 加密参数）导入 login keychain：
-      # 产物拿到真实签名与稳定 CFBundleIdentifier（优于裸 ad-hoc 的随机 glint-<hex> id）。
-      # 自签证书未入信任链，对用户侧 Gatekeeper 行为与 ad-hoc 等价（首启右键打开）。
+      # 现造一枚同名自签证书导入 login keychain。两个兼容性要点（均已本地实测）：
+      # ① 证书必须带 codeSigning EKU（-addext extendedKeyUsage），否则 codesign
+      #    根本不把它当签名身份（"no identity found"，即使 import 显示成功）；
+      # ② p12 用旧式加密参数（-macalg sha1 + PBE-SHA1-3DES），新式 AES+SHA2 MAC
+      #    会被 macOS security import 拒绝（MAC verification failed）。
+      # 自签证书未入信任链，对用户侧 Gatekeeper 行为与 ad-hoc 等价（首启右键打开），
+      # 但产物带稳定 CFBundleIdentifier，优于裸 ad-hoc 的随机 glint-<hex> id。
       - name: Create ephemeral signing identity (GlintLocal)
         if: runner.os == 'macOS'
         run: |
-          openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes -subj "/CN=GlintLocal"
+          openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes -subj "/CN=GlintLocal" \
+            -addext "keyUsage=critical,digitalSignature" \
+            -addext "extendedKeyUsage=codeSigning" \
+            -addext "basicConstraints=critical,CA:FALSE"
           openssl pkcs12 -export -inkey key.pem -in cert.pem -out GlintLocal.p12 -password pass:glint-ci -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES
-          security import GlintLocal.p12 -k ~/Library/Keychains/login.keychain-db -P glint-ci -T /usr/bin/codesign
+          security import GlintLocal.p12 -k "$HOME/Library/Keychains/login.keychain-db" -P glint-ci -T /usr/bin/codesign
 
       # Developer ID 签名就绪后替换上方临时证书步骤：
       # - name: Import signing certificate
