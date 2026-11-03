@@ -42,6 +42,10 @@
         <span id="update-text"></span>
         <button id="update-btn" class="ghost-btn"></button>
       </div>
+      <div id="rate-banner" class="update-banner hidden">
+        <span id="rate-text"></span>
+        <button id="rate-btn" class="ghost-btn hidden"></button>
+      </div>
       <main id="repo-list"></main>
       <footer>
         <button id="manage-btn" class="ghost-btn">⚙ <span data-i18n="manage">管理</span></button>
@@ -62,17 +66,21 @@
         <section>
           <h3 data-i18n="reposSection">监控仓库</h3>
           <div id="repo-manage-list"></div>
-          <div class="row">
-            <input id="new-repo-input" data-i18n-ph="repoInputPh" placeholder="owner/repo，支持批量粘贴（空格/逗号/换行分隔）" />
-            <button id="add-repo-btn" data-i18n="add">添加</button>
-          </div>
-          <div class="row">
-            <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
-            <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
-          </div>
-          <div id="repo-check-list" class="repo-check-list hidden"></div>
-          <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
-          <button id="import-local-btn" class="secondary" data-i18n="importLocal">扫描本地 code 目录</button>
+          <!-- 从 GitHub 选择仓库：折叠面板，勾选完自动收起，不常驻占位 -->
+          <details id="repo-picker" class="repo-picker">
+            <summary>
+              <span class="chevron">▶</span>
+              <span data-i18n="pickFromGithub">从 GitHub 选择仓库</span>
+            </summary>
+            <div class="picker-body">
+              <div class="row">
+                <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
+                <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
+              </div>
+              <div id="repo-check-list" class="repo-check-list hidden"></div>
+              <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
+            </div>
+          </details>
         </section>
 
         <section>

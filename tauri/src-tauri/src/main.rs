@@ -143,6 +143,37 @@ mod config_tests {
         assert!(c.notify_on_success);
         assert!(c.repos.is_empty());
     }
+
+    // 「复制错误」摘录：优先 ##[error] 行并剥离行首时间戳，无标记时回退日志末尾
+    #[test]
+    fn excerpt_prefers_error_annotation_lines() {
+        let log = concat!(
+            "2026-11-03T01:02:03.1234567Z ##[group]Run cargo test\n",
+            "2026-11-03T01:02:04.0000000Z    Compiling gitcistatus v1.0.0\n",
+            "2026-11-03T01:02:05.0000000Z ##[error]test failed: expected 2, got 3\n",
+            "2026-11-03T01:02:05.1000000Z ##[error]error: build failed\n",
+            "2026-11-03T01:02:06.0000000Z ##[endgroup]\n",
+        );
+        let ex = extract_error_excerpt(log, 30, 4000);
+        assert_eq!(ex, "test failed: expected 2, got 3\nerror: build failed");
+    }
+
+    #[test]
+    fn excerpt_falls_back_to_log_tail() {
+        let log = "l1\nl2\nl3\nl4\nl5\n";
+        assert_eq!(extract_error_excerpt(log, 2, 4000), "l4\nl5");
+        // 无时间戳前缀的行原样保留
+        let plain = "plain line A\nplain line B\n";
+        assert_eq!(extract_error_excerpt(plain, 30, 4000), "plain line A\nplain line B");
+    }
+
+    #[test]
+    fn excerpt_respects_char_cap() {
+        let log = "2026-11-03T01:02:03.1234567Z ##[error]aaaaaaaaaa\n2026-11-03T01:02:03.1234567Z ##[error]bbbbbbbbbb\n";
+        let ex = extract_error_excerpt(log, 30, 12);
+        assert!(ex.chars().count() <= 13); // 内容 + 可能的省略号
+        assert!(ex.starts_with("aaaaaaaaaa"));
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -462,6 +493,28 @@ fn fetch_user_repos() -> Result<Vec<RepoBrief>, String> {
     Ok(out)
 }
 
+/// 拉取失败 job 的日志并提取错误摘录——「失败后不打开网页、直接复制错误」的数据源
+#[tauri::command]
+fn fetch_job_log_excerpt(repo: String, job_id: i64) -> Result<String, String> {
+    if job_id <= 0 {
+        return Err("NO_JOB".into());
+    }
+    let token = resolve_token();
+    let url = gh_url(
+        &format!("/repos/{}/actions/jobs/{}/logs", repo, job_id),
+        &[],
+    );
+    let excerpt = get_text(&url, token.as_deref()).and_then(|log| {
+        let ex = extract_error_excerpt(&log, 30, 4000);
+        if ex.trim().is_empty() {
+            Err("EMPTY_LOG".into())
+        } else {
+            Ok(ex)
+        }
+    })?;
+    Ok(excerpt)
+}
+
 #[tauri::command]
 fn device_flow_start(
     app: AppHandle,
@@ -668,6 +721,90 @@ fn get_json(url: &str, token: Option<&str>) -> Result<(serde_json::Value, bool),
         }
         Err(e) => Err(e),
     }
+}
+
+/// 拉取文本响应（日志端点返回 302 到签名 URL，ureq 默认跟随重定向，无需再带鉴权）
+fn get_text_once(a: &ureq::Agent, url: &str, token: Option<&str>) -> Result<String, String> {
+    let mut req = a
+        .get(url)
+        .set("Accept", "application/vnd.github+json")
+        .set("X-GitHub-Api-Version", "2022-11-28")
+        .set("User-Agent", "GitCIStatus/1.0");
+    if let Some(t) = token {
+        req = req.set("Authorization", &format!("Bearer {}", t));
+    }
+    match req.call() {
+        Ok(resp) => {
+            if resp.status() == 200 {
+                resp.into_string().map_err(|e| format!("NETWORK {}", e))
+            } else {
+                Err(format!("HTTP_{}", resp.status()))
+            }
+        }
+        Err(ureq::Error::Status(code, _)) => Err(format!("HTTP_{}", code)),
+        Err(e) => Err(format!("NETWORK {}", e)),
+    }
+}
+
+/// get_text：与 get_json 相同的双路由策略（主路由网络失败/限流时切回退路由重试）
+fn get_text(url: &str, token: Option<&str>) -> Result<String, String> {
+    let mut result = get_text_once(agent(), url, token);
+    if matches!(&result, Err(e) if e.starts_with("NETWORK") || e == "HTTP_403" || e == "HTTP_429") {
+        if let Some(fb) = fallback_agent() {
+            eprintln!("[net] primary route failed ({result:?}), retrying via fallback");
+            result = get_text_once(fb, url, token);
+        }
+    }
+    result
+}
+
+/// 去掉 GitHub 日志行首的 ISO8601 时间戳前缀（如 `2026-11-03T01:02:03.1234567Z `）
+fn strip_log_ts(line: &str) -> &str {
+    let b = line.as_bytes();
+    if b.len() > 28 && b[4] == b'-' && b[10] == b'T' {
+        let end = 40.min(line.len());
+        if let Some(p) = line[11..end].find("Z ") {
+            return &line[p + 13..];
+        }
+    }
+    line
+}
+
+/// 从 job 日志原文提取错误摘录：优先 `##[error]` 标记行（去时间戳），否则取末尾若干行
+/// （许多工具不在注解里标 error，但失败原因总在日志尾部）。行数与字符数双重封顶。
+fn extract_error_excerpt(log: &str, max_lines: usize, max_chars: usize) -> String {
+    let clean = |l: &str| -> String {
+        strip_log_ts(l).replace("##[error]", "").trim_end().to_string()
+    };
+    let err_lines: Vec<String> = log
+        .lines()
+        .filter(|l| l.contains("##[error]"))
+        .map(|l| clean(l))
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+
+    let picked: Vec<String> = if !err_lines.is_empty() {
+        err_lines
+    } else {
+        let all: Vec<&str> = log.lines().collect();
+        let start = all.len().saturating_sub(max_lines);
+        all[start..]
+            .iter()
+            .map(|l| clean(l))
+            .filter(|l| !l.trim().is_empty())
+            .collect()
+    };
+
+    let mut out = String::new();
+    for l in picked.into_iter().take(max_lines) {
+        if out.len() + l.len() + 1 > max_chars {
+            out.push('…');
+            break;
+        }
+        out.push_str(&l);
+        out.push('\n');
+    }
+    out.trim_end().to_string()
 }
 
 // ============ 状态判定（与 macOS 原生版一致） ============
@@ -940,10 +1077,91 @@ fn status_color(status: &str) -> (u8, u8, u8) {
     }
 }
 
-/// 程序生成的托盘图标：git 分支图形 + 状态角标（RGBA），无需外部资源
+/// 系统是否深色外观（托盘图形随之取白色/深色变体）。
+/// `defaults read` 在浅色模式下因键不存在而失败；60s TTL 缓存避免每轮轮询都起进程。
+#[cfg(target_os = "macos")]
+fn menu_bar_is_dark() -> bool {
+    static CACHE: OnceLock<Mutex<(std::time::Instant, bool)>> = OnceLock::new();
+    let slot = CACHE.get_or_init(|| Mutex::new((std::time::Instant::now() - Duration::from_secs(60), true)));
+    let mut guard = slot.lock().unwrap();
+    if guard.0.elapsed() < Duration::from_secs(60) {
+        return guard.1;
+    }
+    let dark = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleInterfaceStyle"])
+        .output()
+        .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim().eq_ignore_ascii_case("dark"))
+        .unwrap_or(true);
+    *guard = (std::time::Instant::now(), dark);
+    dark
+}
+
+#[cfg(not(target_os = "macos"))]
+fn menu_bar_is_dark() -> bool {
+    true // 非 macOS 暂不探测，保持白色图形变体
+}
+
+/// 程序生成的托盘图标：git 分支图形 + 状态角标（RGBA），无需外部资源；
+/// 每次重建托盘时按当前系统外观取深/浅变体（轮询周期内即生效）
 fn tray_image(r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
-    let buf = tray_icon::render_tray_rgba(r, g, b, 32);
+    let buf = tray_icon::render_tray_rgba(r, g, b, 32, menu_bar_is_dark());
     tauri::image::Image::new_owned(buf, 32, 32)
+}
+
+/// 面板定位到托盘图标下方居中。
+/// 双屏坑：tray-icon 上报的 position/rect 是「全局屏幕逻辑坐标 × 托盘所在屏 scale」
+/// 的伪物理坐标（tray-icon macos 源码用 NSEvent 坐标 × status 按钮 window 的
+/// backingScaleFactor），而 tao 的 set_position(PhysicalPosition) 又按窗口当前所在屏
+/// 的 scale 反推逻辑点——两屏缩放不同时两把尺子不一致，副屏点击后面板错位。
+/// 因此先把坐标还原为全局逻辑点（points），再用 LogicalPosition 设置（tao 对
+/// Logical 原样透传给 setFrameTopLeftPoint，不经过窗口当前屏换算），并夹进
+/// 托盘所在显示器的可见范围。
+fn position_panel_below_tray(
+    w: &tauri::WebviewWindow,
+    click: PhysicalPosition<f64>,
+    rect: tauri::Rect,
+) {
+    // 还原 scale 的依据：托盘坐标 = 逻辑坐标 × 托盘屏 scale，故该点必落在
+    // 那块屏「自身物理尺寸」表达的范围内
+    let mon = w
+        .available_monitors()
+        .ok()
+        .and_then(|ms| {
+            ms.into_iter().find(|m| {
+                let (mp, ms) = (m.position(), m.size());
+                click.x >= mp.x as f64
+                    && click.x < (mp.x + ms.width as i32) as f64
+                    && click.y >= mp.y as f64
+                    && click.y < (mp.y + ms.height as i32) as f64
+            })
+        })
+        .or_else(|| w.primary_monitor().ok().flatten());
+    let Some(mon) = mon else { return };
+
+    let k = mon.scale_factor().max(0.0001);
+    let (mx, my, mw, mh) = (
+        mon.position().x as f64 / k,
+        mon.position().y as f64 / k,
+        mon.size().width as f64 / k,
+        mon.size().height as f64 / k,
+    );
+
+    // 面板逻辑尺寸 = outer_size（窗口当前屏物理像素）÷ 窗口当前 scale
+    let wk = w.scale_factor().unwrap_or(1.0).max(0.0001);
+    let (pw, ph) = match w.outer_size() {
+        Ok(s) => (s.width as f64 / wk, s.height as f64 / wk),
+        Err(_) => (390.0, 560.0),
+    };
+
+    // 托盘图标中心 x / 底边 y 还原为逻辑点，面板置于其下方居中，四周留 4pt
+    let rpos = rect.position.to_physical::<f64>(k);
+    let rsize = rect.size.to_physical::<f64>(k);
+    let icon_cx = (rpos.x + rsize.width / 2.0) / k;
+    let icon_bottom = (rpos.y + rsize.height) / k;
+    let x = (icon_cx - pw / 2.0).clamp(mx + 4.0, (mx + mw - pw - 4.0).max(mx + 4.0));
+    let y = (icon_bottom + 6.0).clamp(my, (my + mh - ph).max(my));
+
+    let _ = w.set_position(tauri::LogicalPosition::new(x, y));
 }
 
 fn build_menu(app: &AppHandle, states: &[RepoState], failed: i64) -> tauri::Result<Menu<tauri::Wry>> {
@@ -1515,6 +1733,7 @@ fn set_autostart(enable: bool) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
             if window.label() == "panel" {
                 if let tauri::WindowEvent::Focused(false) = event {
@@ -1547,6 +1766,7 @@ fn main() {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         position,
+                        rect,
                         ..
                     } = event
                     {
@@ -1555,12 +1775,7 @@ fn main() {
                             if w.is_visible().unwrap_or(false) {
                                 let _ = w.hide();
                             } else {
-                                if let Ok(ws) = w.outer_size() {
-                                    // position 为托盘图标点击点，面板定位于其下方居中
-                                    let x = position.x as i32 - (ws.width as i32) / 2;
-                                    let y = position.y as i32 + 24;
-                                    let _ = w.set_position(PhysicalPosition::new(x.max(0), y));
-                                }
+                                position_panel_below_tray(&w, position, rect);
                                 let _ = w.show();
                                 let _ = w.set_focus();
                             }
@@ -1591,6 +1806,7 @@ fn main() {
             refresh_now,
             token_info_cmd,
             fetch_user_repos,
+            fetch_job_log_excerpt,
             import_local_dir,
             open_url,
             quit_app,

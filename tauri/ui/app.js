@@ -20,6 +20,8 @@ const I18N = {
     manage: '管理', refresh: '刷新', quit: '退出', back: '返回',
     loadingRepos: '正在加载仓库状态…', emptyRepos: '还没有监控的仓库', addRepo: '添加仓库',
     failedDetail: '失败详情 · {n} 项', viewLog: '查看日志 ↗', more: '还有 {n} 项…',
+    copy: '复制', copied: '已复制 ✓', copyFailed: '复制失败',
+    copyError: '复制错误', copiedSummary: '已复制摘要', logUnavailable: '（日志拉取失败，仅摘要）',
     checks: '检查 {n} 项', stars: '★ {n}',
     allPass: '全部检查通过',
     tokenPresent: 'Token ✓（通过 GitHub 登录）',
@@ -29,9 +31,7 @@ const I18N = {
     advancedClientId: '高级：自定义 OAuth App Client ID',
     relogin: '重新登录',
     manageTitle: '仓库管理', reposSection: '监控仓库',
-    repoInputPh: 'owner/repo，支持批量粘贴（空格/逗号/换行分隔）',
-    add: '添加', importGh: '导入 gh 账号的仓库', importLocal: '扫描本地 code 目录',
-    addedN: '已添加 {n} 个仓库', addedNone: '没有新增（每项格式应为 owner/repo）',
+    pickFromGithub: '从 GitHub 选择仓库',
     fetchRepos: '⟳ 拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…',
     checkHint: '勾选即加入监控，取消勾选即移除；可随时重新拉取。',
     noMatch: '没有匹配的仓库', emptyFetched: '未拉取到仓库', fetchFailed: '拉取失败：{msg}',
@@ -41,6 +41,9 @@ const I18N = {
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
     updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
+    rateLimitHint: 'GitHub API 限流中，登录后限额提升至 5000 次/时',
+    rateLimitHintAuthed: 'GitHub API 限流中，稍后自动恢复',
+    goLogin: '去登录',
     clientIdPh: 'OAuth App Client ID（留空使用内置默认）',
     deviceLogin: '通过 GitHub 登录', cancel: '取消',
     needClientId: '请先填写 OAuth Client ID：github.com → Settings → Developer settings → OAuth Apps 注册应用（无需 secret），把 Client ID 粘贴到这里',
@@ -68,6 +71,8 @@ const I18N = {
     manage: 'Manage', refresh: 'Refresh', quit: 'Quit', back: 'Back',
     loadingRepos: 'Loading repository status…', emptyRepos: 'No repositories yet', addRepo: 'Add Repository',
     failedDetail: 'Failures · {n}', viewLog: 'View log ↗', more: '{n} more…',
+    copy: 'Copy', copied: 'Copied ✓', copyFailed: 'Copy failed',
+    copyError: 'Copy error', copiedSummary: 'Copied summary', logUnavailable: '(log unavailable, summary only)',
     checks: '{n} checks', stars: '★ {n}',
     allPass: 'All checks passed',
     tokenPresent: 'Token ✓ (signed in with GitHub)',
@@ -77,9 +82,7 @@ const I18N = {
     advancedClientId: 'Advanced: custom OAuth App Client ID',
     relogin: 'Sign in again',
     manageTitle: 'Manage Repositories', reposSection: 'Repositories',
-    repoInputPh: 'owner/repo, bulk paste supported (space/comma/newline)',
-    add: 'Add', importGh: "Import from gh account", importLocal: 'Scan local code dirs',
-    addedN: 'Added {n} repos', addedNone: 'Nothing added (expected owner/repo)',
+    pickFromGithub: 'Select repos from GitHub',
     fetchRepos: '⟳ Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…',
     checkHint: 'Check to monitor, uncheck to remove; re-fetch anytime.',
     noMatch: 'No matching repos', emptyFetched: 'No repos found', fetchFailed: 'Fetch failed: {msg}',
@@ -89,6 +92,9 @@ const I18N = {
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
     updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
+    rateLimitHint: 'GitHub API rate limited — sign in for 5,000 req/h',
+    rateLimitHintAuthed: 'GitHub API rate limited, will recover shortly',
+    goLogin: 'Sign in',
     clientIdPh: 'OAuth App Client ID (leave empty to use built-in default)',
     deviceLogin: 'Sign in with GitHub', cancel: 'Cancel',
     needClientId: 'Fill in the OAuth Client ID first: github.com → Settings → Developer settings → OAuth Apps → New OAuth App (no secret needed), then paste the Client ID here',
@@ -221,6 +227,60 @@ function el(tag, className, text) {
   return node;
 }
 
+// ============ 剪贴板 ============
+
+// 优先 Tauri 剪贴板插件（跨平台可靠），失败时退回浏览器 API，最后 execCommand 兜底
+async function copyText(text) {
+  try {
+    await window.__TAURI__.clipboardManager.writeText(text);
+    return true;
+  } catch (e) { /* 继续尝试浏览器 API */ }
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e2) { /* 继续兜底 */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (!ok) report('execCommand copy returned false');
+    return ok;
+  } catch (e3) {
+    report(`copy failed: ${e3}`);
+    return false;
+  }
+}
+
+// 点击后短暂显示复制结果，再恢复原文案
+function flashCopyBtn(btn, ok, okLabel, restoreLabel) {
+  btn.textContent = ok ? okLabel : t('copyFailed');
+  btn.classList.toggle('fail', !ok);
+  setTimeout(() => {
+    btn.textContent = restoreLabel;
+    btn.classList.remove('fail');
+  }, 1600);
+}
+
+// 失败摘要（复制错误的前置头：仓库 @ 提交 / job ▸ step / 链接）
+function failureSummaryText(s, entry) {
+  const lines = [
+    `${s.repo}${s.head_sha ? ` @ ${s.head_sha.slice(0, 7)}` : ''}${s.branch ? ` (${s.branch})` : ''}`,
+  ];
+  if (entry) {
+    let job = `Job: ${entry.name}`;
+    if (entry.step) job += ` ▸ ${entry.step}`;
+    lines.push(job);
+  }
+  const url = (entry && entry.url) || s.top_fail_url;
+  if (url) lines.push(url);
+  return lines.join('\n');
+}
+
 function compactStatusText(s) {
   if (s.status === 'failed') {
     if (s.failed_count === 1 && s.failed_checks && s.failed_checks[0]) {
@@ -299,9 +359,10 @@ function detailSection(s) {
 
   // 失败详情
   if (s.status === 'failed') {
+    // id 仅 failed_jobs 有意义（Actions job id，日志端点用它）；failed_checks 是 check run id，不能混用
     const entries = (s.failed_jobs && s.failed_jobs.length)
-      ? s.failed_jobs.map((j) => ({ name: j.name, step: j.failed_step, url: j.url, start: j.started_at, end: j.completed_at }))
-      : (s.failed_checks || []).map((c) => ({ name: c.name, step: null, url: c.url, start: c.started_at, end: c.completed_at }));
+      ? s.failed_jobs.map((j) => ({ id: j.id, name: j.name, step: j.failed_step, url: j.url, start: j.started_at, end: j.completed_at }))
+      : (s.failed_checks || []).map((c) => ({ id: null, name: c.name, step: null, url: c.url, start: c.started_at, end: c.completed_at }));
     if (entries.length) {
       const box = el('div', 'fail-box');
       const head = el('div', 'fail-head');
@@ -311,6 +372,32 @@ function detailSection(s) {
         log.addEventListener('click', (e) => { e.stopPropagation(); invoke('open_url', { url: s.top_fail_url }); });
         head.appendChild(log);
       }
+      // 核心承诺：失败后不跳网页，直接复制错误（日志摘录）
+      const copyBtn = el('button', 'copy-btn', t('copyError'));
+      copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (copyBtn.disabled) return;
+        copyBtn.disabled = true;
+        const entry = entries[0];
+        let text = failureSummaryText(s, entry);
+        let gotExcerpt = false;
+        if (entry && entry.id) {
+          try {
+            const excerpt = await invoke('fetch_job_log_excerpt', { repo: s.repo, jobId: entry.id });
+            if (excerpt && excerpt.trim()) {
+              text = `${text}\n\n${excerpt}`;
+              gotExcerpt = true;
+            }
+          } catch (err) {
+            report(`fetch_job_log_excerpt failed: ${err}`);
+          }
+        }
+        if (!gotExcerpt) text = `${text}\n${t('logUnavailable')}`;
+        const ok = await copyText(text);
+        flashCopyBtn(copyBtn, ok, gotExcerpt ? t('copied') : t('copiedSummary'), t('copyError'));
+        copyBtn.disabled = false;
+      });
+      head.appendChild(copyBtn);
       box.appendChild(head);
       for (const entry of entries.slice(0, 6)) {
         const item = el('div', 'fail-item');
@@ -482,9 +569,28 @@ function switchView(view) {
   if (view === 'manage') loadManage();
 }
 
+// 限流提示：任一仓库处于 403 错误时在面板顶部出横幅（未登录附「去登录」入口）
+function renderRateHint() {
+  const any403 = (snapshot?.repos || []).some(
+    (s) => s.status === 'error' && (s.error_text || '').includes('HTTP_403')
+  );
+  const banner = document.getElementById('rate-banner');
+  if (!any403) {
+    banner.classList.add('hidden');
+    return;
+  }
+  document.getElementById('rate-text').textContent = t(authed ? 'rateLimitHintAuthed' : 'rateLimitHint');
+  const btn = document.getElementById('rate-btn');
+  btn.classList.toggle('hidden', authed);
+  btn.textContent = t('goLogin');
+  btn.onclick = () => switchView('manage');
+  banner.classList.remove('hidden');
+}
+
 function render() {
   try {
     renderPanel();
+    renderRateHint();
     applyI18n();
   } catch (e) {
     report(`render failed: ${e && e.stack ? e.stack : e}`);
@@ -513,7 +619,19 @@ function setDeviceStatus(node) {
 function deviceWaitingNode(info) {
   const wrap = el('div', '');
   wrap.appendChild(el('div', '', t('deviceWait')));
-  wrap.appendChild(el('div', 'user-code', info.user_code));
+  const codeRow = el('div', 'user-code-row');
+  codeRow.appendChild(el('div', 'user-code', info.user_code));
+  const copyBtn = el('button', 'copy-btn', t('copy'));
+  copyBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (copyBtn.disabled) return;
+    copyBtn.disabled = true;
+    const ok = await copyText(info.user_code);
+    flashCopyBtn(copyBtn, ok, t('copied'), t('copy'));
+    copyBtn.disabled = false;
+  });
+  codeRow.appendChild(copyBtn);
+  wrap.appendChild(codeRow);
   const row = el('div', '');
   row.appendChild(el('span', 'muted small', `${t('deviceWaiting')} · `));
   const a = el('a', '', info.verification_url);
@@ -525,6 +643,17 @@ function deviceWaitingNode(info) {
 
 let fetchedRepos = []; // 最近一次拉取的可监控仓库
 let repoFilter = '';
+
+// 「从 GitHub 选择仓库」折叠面板：展开时若还没拉取过则自动拉取；
+// 勾选后短暂延时自动收起（连续勾选会重置计时），不再常驻占用页面
+let collapseTimer = 0;
+
+function schedulePickerCollapse() {
+  const picker = document.getElementById('repo-picker');
+  if (!picker.open) return;
+  clearTimeout(collapseTimer);
+  collapseTimer = setTimeout(() => { picker.open = false; }, 1500);
+}
 
 async function fetchUserRepos() {
   const btn = document.getElementById('fetch-repos-btn');
@@ -572,6 +701,7 @@ function renderCheckList() {
       }
       await invoke('save_config', { config: currentConfig });
       renderManageRepos(currentConfig);
+      schedulePickerCollapse();
     });
     item.appendChild(cb);
     item.appendChild(el('span', '', r.full_name));
@@ -606,49 +736,17 @@ function bindEvents() {
   document.getElementById('lang-btn').addEventListener('click', toggleLang);
   document.getElementById('onboard-lang-btn').addEventListener('click', toggleLang);
 
-  document.getElementById('add-repo-btn').addEventListener('click', async () => {
-    const input = document.getElementById('new-repo-input');
-    const raw = input.value.trim();
-    if (!raw || !currentConfig) return;
-    const candidates = raw.split(/[\s,]+/).filter((x) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(x));
-    let added = 0;
-    for (const repo of candidates) {
-      if (!currentConfig.repos.includes(repo)) {
-        currentConfig.repos.push(repo);
-        added += 1;
-      }
-    }
-    if (added > 0) {
-      await invoke('save_config', { config: currentConfig });
-      renderManageRepos(currentConfig);
-      showManageMessage(t('addedN', { n: added }));
-    } else {
-      showManageMessage(t('addedNone'));
-    }
-    input.value = '';
-  });
-
   document.getElementById('fetch-repos-btn').addEventListener('click', fetchUserRepos);
   document.getElementById('repo-filter-input').addEventListener('input', (e) => {
     repoFilter = e.target.value;
     renderCheckList();
   });
-  document.getElementById('import-local-btn').addEventListener('click', async () => {
-    if (!currentConfig) return;
-    const repos = await invoke('import_local_dir');
-    let added = 0;
-    for (const repo of repos) {
-      if (!currentConfig.repos.includes(repo)) {
-        currentConfig.repos.push(repo);
-        added += 1;
-      }
-    }
-    if (added > 0) {
-      await invoke('save_config', { config: currentConfig });
-      renderManageRepos(currentConfig);
-      renderCheckList();
-    }
-    showManageMessage(added > 0 ? t('addedN', { n: added }) : t('addedNone'));
+
+  // 折叠面板：手动开合时清掉自动收起计时；首次展开自动拉取仓库列表
+  const picker = document.getElementById('repo-picker');
+  picker.addEventListener('toggle', () => {
+    clearTimeout(collapseTimer);
+    if (picker.open && !fetchedRepos.length) fetchUserRepos();
   });
 
   document.getElementById('interval-select').addEventListener('change', persistConfig);

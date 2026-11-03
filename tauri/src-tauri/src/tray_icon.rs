@@ -82,26 +82,30 @@ fn blend(cr: &mut u8, cg: &mut u8, cb: &mut u8, ca: &mut f64, r: u8, g: u8, b: u
     *ca = oa;
 }
 
-/// 渲染 size×size RGBA 托盘图标;`r/g/b` 为状态角标颜色
-pub fn render_tray_rgba(r: u8, gc: u8, b: u8, size: u32) -> Vec<u8> {
+/// 渲染 size×size RGBA 托盘图标;`r/g/b` 为状态角标颜色。
+/// `dark`=深色菜单栏(白色图形+深色外沿);浅色菜单栏则反转(深色图形+白色外沿)。
+pub fn render_tray_rgba(r: u8, gc: u8, b: u8, size: u32, dark: bool) -> Vec<u8> {
     let k = size as f64 / CANVAS;
     let mut buf = vec![0u8; (size * size * 4) as usize];
+    // 深色栏:白图形+黑外沿;浅色栏:近黑图形+白外沿
+    let (gr, gg, gb) = if dark { (255u8, 255u8, 255u8) } else { (29u8, 29u8, 31u8) };
+    let (rr, rg, rb) = if dark { (0u8, 0u8, 0u8) } else { (255u8, 255u8, 255u8) };
     for y in 0..size {
         for x in 0..size {
             let px = (x as f64 + 0.5) / k;
             let py = (y as f64 + 0.5) / k;
             let (mut cr, mut cg, mut cb, mut ca) = (0u8, 0u8, 0u8, 0f64);
 
-            // 半透明深色外沿:浅色菜单栏下保证白色图形可见
+            // 半透明外沿:保证图形在相反明度的菜单栏下可见
             let d = glyph_dist(px, py);
             let rim = clamp01(1.4 - d) * clamp01(d + 0.5) * 0.55;
             if rim > 0.0 {
-                blend(&mut cr, &mut cg, &mut cb, &mut ca, 0, 0, 0, rim);
+                blend(&mut cr, &mut cg, &mut cb, &mut ca, rr, rg, rb, rim);
             }
-            // 白色主图形
+            // 主图形
             let fill = clamp01(0.5 - d);
             if fill > 0.0 {
-                blend(&mut cr, &mut cg, &mut cb, &mut ca, 255, 255, 255, fill);
+                blend(&mut cr, &mut cg, &mut cb, &mut ca, gr, gg, gb, fill);
             }
             // 角标:白环 + 状态色圆点
             let bd = ((px - BADGE_X) * (px - BADGE_X) + (py - BADGE_Y) * (py - BADGE_Y)).sqrt();

@@ -25,9 +25,9 @@
 - [x] 通知点击唤起面板（2026-11-02）：通知插件桌面端无点击回调（Actions API 仅移动端），落地为 `RunEvent::Reopen` 唤起面板 + 失败仓库置顶（面板与托盘菜单）；直达 URL 跳转留待后续评估原生 delegate 方案
 - [x] 通知文案双语化（2026-11-02）：按 `config.lang`（空则跟随系统）输出，修复重复计数文案
 - [x] 开机自启（2026-11-02）：不引插件，std-only 实现（macOS LaunchAgent / Windows 注册表 Run / Linux XDG autostart），管理窗口开关
-- [ ] 托盘图标深浅色适配：macOS template image / 深色模式
-- [x] 稳定性清理（2026-11-02）：移除轮询逐周期 `eprintln!` 调试日志、换用非 deprecated 托盘 API；限流/网络错误面板文案与恢复提示待补
-- [ ] 应用图标定稿：自绘产品 Logo（1024px → tauri icon 全套）
+- [x] 托盘图标深浅色适配（2026-11-03）：跟随系统外观渲染深/浅变体（60s TTL 探测，轮询周期内生效），产品图形（git-branch+状态角标）延伸至应用图标
+- [x] 稳定性清理（2026-11-02）：移除轮询逐周期 `eprintln!` 调试日志、换用非 deprecated 托盘 API；限流恢复提示已补（2026-11-03，403 横幅 + 未登录「去登录」入口）
+- [x] 应用图标定稿（2026-11-03）：`scripts/render-appicon.swift` 可复现渲染（1024px → `npx tauri icon` 全套），深色 squircle + 白描边 git-branch + 绿色状态点
 
 ### 分发就绪
 - [ ] Apple Developer ID 签名 + notarytool 公证（有账号后）
