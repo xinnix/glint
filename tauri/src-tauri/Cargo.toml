@@ -17,6 +17,13 @@ ureq = { version = "2", features = ["json"] }
 dirs = "5"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 
+# macOS 原生通知（点击回调，插件桌面端不支持）
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = "0.3"
+objc2-user-notifications = "0.3"
+
 [profile.release]
 strip = true
 lto = true

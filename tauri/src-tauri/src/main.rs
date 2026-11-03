@@ -13,8 +13,11 @@ use std::time::Duration;
 use tauri::menu::{IsMenuItem, Menu, MenuItem, MenuEvent, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(target_os = "macos"))]
 use tauri_plugin_notification::NotificationExt;
 
+#[cfg(target_os = "macos")]
+mod macos_notify;
 mod tray_icon;
 
 // ============ 前端数据模型（字段名即 JSON key） ============
@@ -100,9 +103,11 @@ impl Default for Config {
 
 #[cfg(test)]
 mod keyring_probe {
-    // 隔离探针：验证 keyring（旧版 SecKeychain API）在当前 macOS 上是否真的持久化。
-    // 用独立 account，不碰真实 token。cargo test keyring_roundtrip
+    // 隔离探针：验证 keyring 平台后端真的持久化（曾抓到过 mock 后端的严重 bug）。
+    // 用独立 account，不碰真实 token。会触碰真实钥匙串，CI 跳过：
+    // 本地显式运行 `cargo test keyring_roundtrip -- --ignored`
     #[test]
+    #[ignore]
     fn keyring_roundtrip() {
         let entry = keyring::Entry::new("glint", "token_probe").unwrap();
         entry.set_password("probe-value-12345").unwrap();
@@ -144,7 +149,8 @@ mod config_tests {
         assert!(c.repos.is_empty());
     }
 
-    // 「复制错误」摘录：优先 ##[error] 行并剥离行首时间戳，无标记时回退日志末尾
+    // 「复制错误」摘录：错误行向上带 15 行上下文（根因常在错误前执行的输出里）、
+    // 向下带 5 行，剥离时间戳与 ##[error] 标记；无标记时回退日志末尾
     #[test]
     fn excerpt_prefers_error_annotation_lines() {
         let log = concat!(
@@ -155,7 +161,12 @@ mod config_tests {
             "2026-11-03T01:02:06.0000000Z ##[endgroup]\n",
         );
         let ex = extract_error_excerpt(log, 30, 4000);
-        assert_eq!(ex, "test failed: expected 2, got 3\nerror: build failed");
+        // 错误行前的上下文（Run cargo test / Compiling）一并保留；
+        // 仅含 ##[...] 标记的行剥离后为空，被过滤
+        assert_eq!(
+            ex,
+            "Run cargo test\n   Compiling glint v1.0.0\ntest failed: expected 2, got 3\nerror: build failed"
+        );
     }
 
     #[test]
@@ -540,7 +551,7 @@ fn fetch_job_log_excerpt(repo: String, job_id: i64) -> Result<String, String> {
         &[],
     );
     let excerpt = get_text(&url, token.as_deref()).and_then(|log| {
-        let ex = extract_error_excerpt(&log, 30, 4000);
+        let ex = extract_error_excerpt(&log, 120, 8000);
         if ex.trim().is_empty() {
             Err("EMPTY_LOG".into())
         } else {
@@ -809,31 +820,70 @@ fn strip_log_ts(line: &str) -> &str {
 /// （许多工具不在注解里标 error，但失败原因总在日志尾部）。行数与字符数双重封顶。
 fn extract_error_excerpt(log: &str, max_lines: usize, max_chars: usize) -> String {
     let clean = |l: &str| -> String {
-        strip_log_ts(l).replace("##[error]", "").trim_end().to_string()
+        let mut s = strip_log_ts(l).to_string();
+        // 剥离行首的 GitHub Actions 日志标记（##[error]/##[group]/##[endgroup] 等）
+        if let Some(rest) = s.strip_prefix("##[") {
+            if let Some(idx) = rest.find(']') {
+                s = rest[idx + 1..].to_string();
+            }
+        }
+        s.trim_end().to_string()
     };
-    let err_lines: Vec<String> = log
-        .lines()
-        .filter(|l| l.contains("##[error]"))
-        .map(|l| clean(l))
+    let lines: Vec<&str> = log.lines().collect();
+    let err_idx: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.contains("##[error]"))
+        .map(|(i, _)| i)
+        .collect();
+
+    // 每个错误行向上带 15 行上下文、向下带 5 行（错误前执行的输出往往才是根因所在）；
+    // 区间合并后顺序展开，空行不保留
+    const BEFORE: usize = 15;
+    const AFTER: usize = 5;
+    let mut keep = vec![false; lines.len()];
+    if err_idx.is_empty() {
+        // 没有 ##[error] 标记：回退取日志末尾
+        let start = lines.len().saturating_sub(max_lines);
+        for k in start..lines.len() {
+            keep[k] = true;
+        }
+    } else {
+        for &i in &err_idx {
+            let s = i.saturating_sub(BEFORE);
+            let e = (i + AFTER + 1).min(lines.len());
+            for k in s..e {
+                keep[k] = true;
+            }
+        }
+    }
+    let mut picked: Vec<String> = Vec::new();
+    let mut prev_kept = false;
+    for (i, l) in lines.iter().enumerate() {
+        if keep[i] {
+            if !prev_kept && !picked.is_empty() {
+                picked.push("……".to_string()); // 上下文区间断开处
+            }
+            picked.push(clean(l));
+            prev_kept = true;
+        } else {
+            prev_kept = false;
+        }
+    }
+    let picked: Vec<String> = picked
+        .into_iter()
         .filter(|l| !l.trim().is_empty())
         .collect();
 
-    let picked: Vec<String> = if !err_lines.is_empty() {
-        err_lines
-    } else {
-        let all: Vec<&str> = log.lines().collect();
-        let start = all.len().saturating_sub(max_lines);
-        all[start..]
-            .iter()
-            .map(|l| clean(l))
-            .filter(|l| !l.trim().is_empty())
-            .collect()
-    };
-
+    let total = picked.len();
+    let start = total.saturating_sub(max_lines);
     let mut out = String::new();
-    for l in picked.into_iter().take(max_lines) {
-        if out.len() + l.len() + 1 > max_chars {
-            out.push('…');
+    if start > 0 {
+        out.push_str("（日志过长，已截取末尾）\n");
+    }
+    for l in picked.into_iter().skip(start) {
+        if out.len() + l.len() + 2 > max_chars {
+            out.push_str("……\n");
             break;
         }
         out.push_str(&l);
@@ -1311,7 +1361,7 @@ fn notif_lang(cfg_lang: &str) -> bool {
 /// 配合 main() 里的 RunEvent::Reopen 唤起面板，失败仓库已置顶可直接看到详情。
 fn notify_status_change(app: &AppHandle, cfg: &Config, st: &RepoState, old: &str) {
     let en = notif_lang(&cfg.lang);
-    if st.status == "failed" && cfg.notify_on_failure {
+    let (title, body): (String, String) = if st.status == "failed" && cfg.notify_on_failure {
         let title = if en {
             format!("❌ {} CI failed", st.repo)
         } else {
@@ -1328,7 +1378,7 @@ fn notify_status_change(app: &AppHandle, cfg: &Config, st: &RepoState, old: &str
         } else {
             "检查失败".into()
         };
-        let _ = app.notification().builder().title(title).body(body).show();
+        (title, body)
     } else if st.status == "success" && cfg.notify_on_success && matches!(old, "running" | "failed" | "error") {
         let title = if en {
             format!("✅ {} CI passed", st.repo)
@@ -1336,6 +1386,19 @@ fn notify_status_change(app: &AppHandle, cfg: &Config, st: &RepoState, old: &str
             format!("✅ {} CI 通过", st.repo)
         };
         let body: String = if en { "All checks passed".into() } else { "全部检查通过".into() };
+        (title, body)
+    } else {
+        return;
+    };
+
+    // macOS：原生 UNUserNotificationCenter（delegate 接管点击 → 唤起面板）
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        macos_notify::notify(app, &title, &body, &st.repo);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
         let _ = app.notification().builder().title(title).body(body).show();
     }
 }
@@ -1763,6 +1826,10 @@ fn main() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             migrate_from_legacy();
+
+            // macOS：装原生通知 delegate（必须在应用完成启动前，点击回调才生效）
+            #[cfg(target_os = "macos")]
+            macos_notify::init(app.handle().clone());
 
             let (tx, rx) = mpsc::channel::<()>();
             app.manage(Shared {

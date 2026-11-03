@@ -1,0 +1,29 @@
+name: CI
+
+# main 推送与 PR 的快速检查（编译 + 测试 + 前端语法）；完整构建/发布见 release.yml（tag 触发）
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["site/**", "docs/**", "**.md"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust check + tests
+        working-directory: tauri/src-tauri
+        run: |
+          cargo check --locked
+          cargo test
+
+      - name: Frontend syntax
+        run: node --check tauri/ui/app.js
