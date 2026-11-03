@@ -1,4 +1,4 @@
-// GitCIStatus 跨平台版前端：纯 JS，无构建步骤
+// Glint 跨平台版前端：纯 JS，无构建步骤
 // 通过 withGlobalTauri 暴露的 window.__TAURI__ 与 Rust 后端通信
 
 const { invoke } = window.__TAURI__.core;

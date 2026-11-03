@@ -1,4 +1,4 @@
-# GitCIStatus ROADMAP
+# Glint ROADMAP
 
 > 产品决策与背景见 [PRODUCT.md](./PRODUCT.md)。每个里程碑含验收标准；顺序执行，不并行开里程碑。
 
@@ -51,7 +51,7 @@
 - [ ] GitHub Enterprise：自定义 API base URL 配置
 - [ ] 多账号 Token 管理
 - [ ] ETag 缓存持久化（磁盘，重启首轮不耗限额）
-- [ ] 产品显示名定夺（GreenDot / CIGuard / 保持 GitCIStatus）
+- [x] 产品显示名定夺 ✅ **Glint**（2026-11-03 提前定稿：原名 GitCIStatus 过于繁琐，已全面改名并迁移配置目录/钥匙串/自启项；原定 M2 事项提前完成）
 
 **验收**：至少一名非作者用户在 Linux/Windows 上完成可用性验证；org 仓库与 PR 视角在真实组织仓库上验证。
 

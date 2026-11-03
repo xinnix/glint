@@ -1,4 +1,4 @@
-# GitCIStatus
+# Glint
 
 [English](README.md) | 简体中文
 
@@ -10,7 +10,7 @@
 
 ## 为什么
 
-在 GitHub 上跑 CI，每次确认结果都要切浏览器、找仓库、点 Actions、等加载。GitCIStatus 把这件事压缩成一次眼动：托盘 🟢 没事继续干活，🔴 有事先修，点开直接看是哪个 job 的哪个 step 挂了。
+在 GitHub 上跑 CI，每次确认结果都要切浏览器、找仓库、点 Actions、等加载。Glint 把这件事压缩成一次眼动：托盘 🟢 没事继续干活，🔴 有事先修，点开直接看是哪个 job 的哪个 step 挂了。
 
 免费开源（MIT），纯本地运行、无服务器、无遥测，Token 存系统钥匙串。
 
@@ -66,12 +66,12 @@ Linux 需 `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev` 等系统依
 ```bash
 swift run             # 调试运行（无 .app 包时通知不可用）
 ./scripts/build-app.sh
-open build/GitCIStatus.app
+open build/Glint.app
 ```
 
 ## 配置
 
-`~/.config/gitcistatus/config.json`（自动设为 0600）：
+`~/.config/glint/config.json`（自动设为 0600）：
 
 ```json
 {

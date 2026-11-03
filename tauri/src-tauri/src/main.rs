@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-// GitCIStatus 跨平台版（Tauri）：托盘 + 面板监控 GitHub CI
+// Glint 跨平台版（Tauri）：托盘 + 面板监控 GitHub CI
 // 功能与 macOS 原生版对齐：check-runs 聚合、失败 job/step 定位、ETag 条件请求、
 // 状态变化通知、Token 解析（环境变量 → 钥匙串 → gh CLI → 配置文件）。
 
@@ -104,7 +104,7 @@ mod keyring_probe {
     // 用独立 account，不碰真实 token。cargo test keyring_roundtrip
     #[test]
     fn keyring_roundtrip() {
-        let entry = keyring::Entry::new("gitcistatus", "token_probe").unwrap();
+        let entry = keyring::Entry::new("glint", "token_probe").unwrap();
         entry.set_password("probe-value-12345").unwrap();
         let got = entry.get_password().unwrap();
         assert_eq!(got, "probe-value-12345");
@@ -149,7 +149,7 @@ mod config_tests {
     fn excerpt_prefers_error_annotation_lines() {
         let log = concat!(
             "2026-11-03T01:02:03.1234567Z ##[group]Run cargo test\n",
-            "2026-11-03T01:02:04.0000000Z    Compiling gitcistatus v1.0.0\n",
+            "2026-11-03T01:02:04.0000000Z    Compiling glint v1.0.0\n",
             "2026-11-03T01:02:05.0000000Z ##[error]test failed: expected 2, got 3\n",
             "2026-11-03T01:02:05.1000000Z ##[error]error: build failed\n",
             "2026-11-03T01:02:06.0000000Z ##[endgroup]\n",
@@ -223,7 +223,7 @@ struct CheckRun {
 
 fn config_path() -> std::path::PathBuf {
     let mut p = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    p.push(".config/gitcistatus");
+    p.push(".config/glint");
     let _ = std::fs::create_dir_all(&p);
     p.push("config.json");
     p
@@ -251,7 +251,42 @@ fn save_config_file(config: &Config) -> Result<(), String> {
 // ============ Token：唯一来源是「通过 GitHub 登录」（Device Flow），存系统钥匙串 ============
 
 fn keyring_entry() -> Option<keyring::Entry> {
-    keyring::Entry::new("gitcistatus", "token").ok()
+    keyring::Entry::new("glint", "token").ok()
+}
+
+/// 一次性迁移（2026-11-03 产品更名 Glint ← GitCIStatus）：
+/// 配置目录 ~/.config/gitcistatus → ~/.config/glint；
+/// 钥匙串 service gitcistatus → glint（读到旧 token 即复制并删旧条目）；
+/// 清理旧名的开机自启 LaunchAgent plist。
+fn migrate_from_legacy() {
+    if let Some(home) = dirs::home_dir() {
+        let old_dir = home.join(".config/gitcistatus");
+        let new_dir = home.join(".config/glint");
+        if old_dir.is_dir() && !new_dir.exists() {
+            let _ = std::fs::create_dir_all(new_dir.parent().unwrap());
+            if std::fs::rename(&old_dir, &new_dir).is_ok() {
+                eprintln!("[migrate] config dir ~/.config/gitcistatus -> ~/.config/glint");
+            }
+        }
+        let legacy_plist = home.join("Library/LaunchAgents/io.github.gitcistatus.plist");
+        if legacy_plist.exists() {
+            let _ = std::fs::remove_file(&legacy_plist);
+            eprintln!("[migrate] removed legacy LaunchAgent plist");
+        }
+    }
+    if let (Ok(new), Ok(old)) = (
+        keyring::Entry::new("glint", "token"),
+        keyring::Entry::new("gitcistatus", "token"),
+    ) {
+        if new.get_password().is_err() {
+            if let Ok(token) = old.get_password() {
+                if !token.is_empty() && new.set_password(&token).is_ok() {
+                    let _ = old.delete_credential();
+                    eprintln!("[migrate] keychain token service gitcistatus -> glint");
+                }
+            }
+        }
+    }
 }
 
 fn resolve_token() -> Option<String> {
@@ -374,7 +409,7 @@ fn get_json_once(
         .get(url)
         .set("Accept", "application/vnd.github+json")
         .set("X-GitHub-Api-Version", "2022-11-28")
-        .set("User-Agent", "GitCIStatus/1.0");
+        .set("User-Agent", "Glint/1.0");
     if let Some(t) = token {
         req = req.set("Authorization", &format!("Bearer {}", t));
     }
@@ -410,7 +445,7 @@ fn github_form_post_once(
     let resp = a
         .post(url)
         .set("Accept", "application/json")
-        .set("User-Agent", "GitCIStatus/1.0")
+        .set("User-Agent", "Glint/1.0")
         .send_form(form)
         .map_err(|e| match e {
             ureq::Error::Status(c, _) => format!("HTTP_{}", c),
@@ -729,7 +764,7 @@ fn get_text_once(a: &ureq::Agent, url: &str, token: Option<&str>) -> Result<Stri
         .get(url)
         .set("Accept", "application/vnd.github+json")
         .set("X-GitHub-Api-Version", "2022-11-28")
-        .set("User-Agent", "GitCIStatus/1.0");
+        .set("User-Agent", "Glint/1.0");
     if let Some(t) = token {
         req = req.set("Authorization", &format!("Bearer {}", t));
     }
@@ -1167,9 +1202,9 @@ fn position_panel_below_tray(
 fn build_menu(app: &AppHandle, states: &[RepoState], failed: i64) -> tauri::Result<Menu<tauri::Wry>> {
     let mut items: Vec<Box<dyn IsMenuItem<tauri::Wry>>> = Vec::new();
     let title = if failed > 0 {
-        format!("GitCIStatus · ❌ {}", failed)
+        format!("Glint · ❌ {}", failed)
     } else {
-        "GitCIStatus".to_string()
+        "Glint".to_string()
     };
     items.push(Box::new(MenuItem::with_id(app, "noop", &title, false, None::<&str>)?));
     items.push(Box::new(PredefinedMenuItem::separator(app)?));
@@ -1558,7 +1593,7 @@ fn parse_ver(v: &str) -> (u32, u32, u32) {
 
 #[tauri::command]
 fn check_update() -> Result<Option<UpdateInfo>, String> {
-    const OWNER_REPO: &str = "xinnix/gitcistatus";
+    const OWNER_REPO: &str = "xinnix/glint";
     let current = env!("CARGO_PKG_VERSION");
 
     // 404（还没有正式 release）与网络失败都静默降级为「无更新」，不影响主功能
@@ -1631,7 +1666,7 @@ fn set_autostart_cmd(enable: bool) -> Result<(), String> {
 #[cfg(target_os = "macos")]
 fn autostart_file() -> std::path::PathBuf {
     let mut p = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    p.push("Library/LaunchAgents/io.github.gitcistatus.plist");
+    p.push("Library/LaunchAgents/io.github.glint.plist");
     p
 }
 
@@ -1654,7 +1689,7 @@ fn set_autostart(enable: bool) -> Result<(), String> {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>io.github.gitcistatus</string>
+  <key>Label</key><string>io.github.glint</string>
   <key>ProgramArguments</key>
   <array>
     <string>{}</string>
@@ -1675,7 +1710,7 @@ const AUTOSTART_REG: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run
 #[cfg(target_os = "windows")]
 fn autostart_enabled() -> bool {
     std::process::Command::new("reg")
-        .args(["query", AUTOSTART_REG, "/v", "GitCIStatus"])
+        .args(["query", AUTOSTART_REG, "/v", "Glint"])
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -1687,12 +1722,12 @@ fn set_autostart(enable: bool) -> Result<(), String> {
     if enable {
         let val = format!("\"{}\"", exe.display());
         std::process::Command::new("reg")
-            .args(["add", AUTOSTART_REG, "/v", "GitCIStatus", "/t", "REG_SZ", "/d", &val, "/f"])
+            .args(["add", AUTOSTART_REG, "/v", "Glint", "/t", "REG_SZ", "/d", &val, "/f"])
             .output()
             .map_err(|e| e.to_string())?;
     } else {
         std::process::Command::new("reg")
-            .args(["delete", AUTOSTART_REG, "/v", "GitCIStatus", "/f"])
+            .args(["delete", AUTOSTART_REG, "/v", "Glint", "/f"])
             .output()
             .map_err(|e| e.to_string())?;
     }
@@ -1703,7 +1738,7 @@ fn set_autostart(enable: bool) -> Result<(), String> {
 fn autostart_file() -> std::path::PathBuf {
     let mut p = dirs::config_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"));
-    p.push("autostart/gitcistatus.desktop");
+    p.push("autostart/glint.desktop");
     p
 }
 
@@ -1722,7 +1757,7 @@ fn set_autostart(enable: bool) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
     let entry = format!(
-        "[Desktop Entry]\nType=Application\nName=GitCIStatus\nExec=\"{}\"\nX-GNOME-Autostart-enabled=true\n",
+        "[Desktop Entry]\nType=Application\nName=Glint\nExec=\"{}\"\nX-GNOME-Autostart-enabled=true\n",
         exe.display()
     );
     std::fs::write(&path, entry).map_err(|e| e.to_string())
@@ -1745,6 +1780,8 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            migrate_from_legacy();
+
             let (tx, rx) = mpsc::channel::<()>();
             app.manage(Shared {
                 snapshot: Mutex::new(Vec::new()),
@@ -1757,7 +1794,7 @@ fn main() {
             let menu = build_menu(app.handle(), &[], 0)?;
             TrayIconBuilder::with_id("main")
                 .icon(tray_image(142, 142, 147))
-                .tooltip("GitCIStatus")
+                .tooltip("Glint")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| handle_menu_event(app, event))
@@ -1785,7 +1822,7 @@ fn main() {
                 .build(app)?;
 
             WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
-                .title("GitCIStatus")
+                .title("Glint")
                 .inner_size(390.0, 560.0)
                 .decorations(false)
                 .resizable(false)
@@ -1818,7 +1855,7 @@ fn main() {
             device_flow_abort
         ])
         .build(tauri::generate_context!())
-        .expect("GitCIStatus 启动失败")
+        .expect("Glint 启动失败")
         .run(|app, event| {
             // macOS：点击系统通知会激活应用并触发 reopen；此时唤起面板，
             // 失败仓库已置顶，一眼可见失败详情（通知插件桌面端无点击回调）

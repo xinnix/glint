@@ -1,5 +1,5 @@
 [package]
-name = "gitcistatus"
+name = "glint"
 version = "1.0.0"
 description = "GitHub CI status tray monitor"
 edition = "2021"

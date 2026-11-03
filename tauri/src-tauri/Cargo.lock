@@ -1425,21 +1425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gitcistatus"
-version = "1.0.0"
-dependencies = [
- "dirs 5.0.1",
- "keyring",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-notification",
- "ureq",
-]
-
-[[package]]
 name = "glib"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1484,6 +1469,21 @@ checksum = "063ce2eb6a8d0ea93d2bf8ba1957e78dbab6be1c2220dd3daca57d5a9d869898"
 dependencies = [
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "glint"
+version = "1.0.0"
+dependencies = [
+ "dirs 5.0.1",
+ "keyring",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-notification",
+ "ureq",
 ]
 
 [[package]]

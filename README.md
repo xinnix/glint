@@ -1,4 +1,4 @@
-# GitCIStatus
+# Glint
 
 English | [简体中文](README.zh-CN.md)
 
@@ -10,7 +10,7 @@ English | [简体中文](README.zh-CN.md)
 
 ## Why
 
-Checking CI on GitHub means switching to the browser, finding the repo, clicking Actions, and waiting for it to load — every single time. GitCIStatus compresses that into one glance: tray green, keep working; tray red, fix it first, with the exact failing job ▸ step one click away.
+Checking CI on GitHub means switching to the browser, finding the repo, clicking Actions, and waiting for it to load — every single time. Glint compresses that into one glance: tray green, keep working; tray red, fix it first, with the exact failing job ▸ step one click away.
 
 Free and open source (MIT). Runs entirely locally — no server, no telemetry, token stored in the system keychain.
 
@@ -66,12 +66,12 @@ The native macOS Swift version is archived (feature-frozen, maintenance only) bu
 ```bash
 swift run             # debug run (notifications unavailable without the .app bundle)
 ./scripts/build-app.sh
-open build/GitCIStatus.app
+open build/Glint.app
 ```
 
 ## Configuration
 
-`~/.config/gitcistatus/config.json` (permissions set to 0600 automatically):
+`~/.config/glint/config.json` (permissions set to 0600 automatically):
 
 ```json
 {

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 构建 GitCIStatus.app（菜单栏应用包，LSUIElement 不占 Dock）
+# 构建 Glint.app（菜单栏应用包，LSUIElement 不占 Dock）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 swift build -c release
 
-APP="build/GitCIStatus.app"
+APP="build/Glint.app"
 mkdir -p "$APP/Contents/MacOS"
-cp ".build/release/GitCIStatus" "$APP/Contents/MacOS/GitCIStatus"
+cp ".build/release/Glint" "$APP/Contents/MacOS/Glint"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -15,11 +15,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
-    <key>CFBundleExecutable</key><string>GitCIStatus</string>
-    <key>CFBundleIdentifier</key><string>com.xinnix.gitcistatus</string>
+    <key>CFBundleExecutable</key><string>Glint</string>
+    <key>CFBundleIdentifier</key><string>com.xinnix.glint</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>GitCIStatus</string>
-    <key>CFBundleDisplayName</key><string>GitCIStatus</string>
+    <key>CFBundleName</key><string>Glint</string>
+    <key>CFBundleDisplayName</key><string>Glint</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0.0</string>
     <key>CFBundleVersion</key><string>1</string>

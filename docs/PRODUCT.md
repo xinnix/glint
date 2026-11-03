@@ -1,4 +1,4 @@
-# GitCIStatus 产品方案
+# Glint 产品方案
 
 > 版本：2026-11-02 定稿 · 决策人：xinnix
 > 配套文档：[ROADMAP.md](./ROADMAP.md)（里程碑与验收标准）
@@ -45,7 +45,7 @@
 
 ## 4. 竞品对比与差异化
 
-| | ActionBar | OctoWatch | Gitify | Trailer | **GitCIStatus** |
+| | ActionBar | OctoWatch | Gitify | Trailer | **Glint** |
 |---|---|---|---|---|---|
 | 免费/开源 | 付费·闭源 | 免费·未开源 | 免费·开源 | 免费·开源 | **免费·MIT 开源** |
 | 平台 | 仅 macOS | 仅 macOS | 三平台 | 仅 macOS | **macOS 首发 → 三平台**（Tauri） |
@@ -92,7 +92,7 @@
 | 发布流水线 | GitHub Actions：tag → 三步构建 → 签名 → Draft Release |
 | README 英文化 | EN 主体 + 中文版链接、截图/动图、badges |
 | 稳定性 | 清理生产路径 eprintln 调试日志、限流/网络错误在面板可见 |
-| Homebrew Cask | `brew install --cask gitcistatus` |
+| Homebrew Cask | `brew install --cask glint` |
 
 ### 5.3 v1.x（跨平台与深度）
 
@@ -133,11 +133,11 @@
 
 ## 8. 品牌
 
-- 仓库名/命令行名：**GitCIStatus**（保留，SEO 与现有配置路径零成本）
-- 产品显示名候选（v1.x 定夺，不阻塞 v1.0）：
-  - **GreenDot**（状态栏绿点即品牌记忆点，短、好念）
-  - **CIGuard**（CI 哨兵）
-  - **Pushly**（push 完就走）
+- **定名 Glint**（2026-11-03 用户拍板；原名 GitCIStatus 过于繁琐，仓库 `xinnix/glint`）
+  - 语义：「瞥见的一点亮光」= 产品核心（菜单栏里那点状态光 + 一眼即知）
+  - slogan：**CI status at a glance**
+  - 改名时机成本最低（用户≈作者，v1.0 未发布）；迁移已覆盖：配置目录、钥匙串 service、LaunchAgent、应用名/标识符
+- 命名落选备选：GreenDot（与金融公司同名）、Blip（同赛道已有 ★1.7k 监控工具）、Ojo（含义对非西语用户不可读）、CIGuard（略拗口）
 - 商标安全：图标为自绘几何图形（圆点+分支线条），不使用 GitHub logo/章鱼猫；文案用「for GitHub」
 
 ## 9. 风险与对策

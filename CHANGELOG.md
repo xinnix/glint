@@ -21,6 +21,7 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 - 设备流登录失败时错误显示在错误视图（管理页）而用户停留在引导页，表现为「无反应」；现已在引导页内红字提示
 
 ### Changed
+- **项目更名 GitCIStatus → Glint**（2026-11-03）：仓库 `xinnix/glint`，应用名/包名/标识符（`io.github.glint`）/托盘菜单/通知全面更名；启动时自动迁移——配置目录 `~/.config/gitcistatus` → `~/.config/glint`、钥匙串 service 同步迁移、清理旧名 LaunchAgent plist。slogan：CI status at a glance
 - **全新应用图标**：产品视觉定稿——深色圆角方形 + Feather 风格 git-branch 白描边 + 绿色状态点（`scripts/render-appicon.swift` 可复现渲染全套尺寸）
 - **托盘图标跟随系统深浅色外观**自动切换白/深色图形变体（60s TTL 探测，轮询周期内生效）
 - 403 限流时面板顶部出提示横幅（未登录附「去登录」入口）
