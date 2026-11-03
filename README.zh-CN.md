@@ -27,7 +27,7 @@
 - **系统通知**：失败立刻通知；「运行中 → 通过」也通知（均可关，文案跟随应用语言）
   - 点击通知会唤起面板直达失败详情（macOS）
 - **零配置登录**：RFC 8628 Device Flow 浏览器授权（`gh auth login --web` 同款），内置 Client ID，登录后直接勾选要监控的仓库
-- **仓库管理**：拉取自己的仓库复选勾选（过滤 fork/archived）、手动批量粘贴、扫描本地目录（可选）
+- **仓库管理**：拉取自己的仓库复选勾选（过滤 fork/archived）
 - **开机自启**：管理窗口一键开关（登录时自动启动，下次登录生效）
 - 中英双语界面（跟随系统，可手动切换）
 
@@ -35,9 +35,15 @@
 
 | 平台 | 状态 |
 |------|------|
-| macOS | ✅ v1.0 首发平台（当前开发版可用） |
-| Linux | 🚧 v1.x（deb / AppImage） |
-| Windows | 🚧 v1.x（MSI） |
+| macOS | ✅ v1.0 首发平台（通用二进制） |
+| Linux | ✅ v1.1（deb / AppImage） |
+| Windows | ✅ v1.1（MSI / NSIS 安装器） |
+
+## 已知限制
+
+- **尚未代码签名**（Apple Developer ID / Windows Authenticode 待开发者账号）：macOS 首次启动需右键 → 打开；Windows 可能弹 SmartScreen 警示，点「更多信息」→「仍要运行」。
+- **点击通知唤起面板**目前仅 macOS（原生 UNUserNotificationCenter delegate）。Windows/Linux 点击通知仅激活应用，可从托盘菜单「面板 Panel」打开面板。
+- **Linux**：Wayland 下无法把面板定位到托盘图标下方（无全局坐标），面板出现在系统默认位置；X11 完整支持。GNOME 的 AppIndicator 托盘左键直接弹菜单，用菜单里的「面板 Panel」项。
 
 ## 快速上手
 
@@ -56,10 +62,10 @@
 cd tauri
 npm install       # 仅安装 @tauri-apps/cli
 npx tauri dev     # 调试运行
-npx tauri build   # 产物在 src-tauri/target/release/bundle/（.app + DMG）
+npx tauri build   # 产物在 src-tauri/target/release/bundle/（DMG / deb+AppImage / MSI+NSIS，按平台）
 ```
 
-Linux 需 `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev` 等系统依赖；Windows 需 WebView2（系统自带）。
+Linux 需 `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf` 等系统依赖；Windows 需 WebView2（系统自带）。
 
 原生 macOS Swift 版已归档（停止新功能，仅维护），仍可构建：
 

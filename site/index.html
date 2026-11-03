@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Glint — CI status at a glance</title>
-  <meta name="description" content="A tray-resident GitHub CI status dashboard for macOS. One glance at the menu bar tells you everything; failures drill down to the exact job ▸ step with one-click log access. Free & open source (MIT)." />
+  <meta name="description" content="A tray-resident GitHub CI status dashboard for macOS, Linux and Windows. One glance at the tray tells you everything; failures drill down to the exact job ▸ step with one-click log access. Free & open source (MIT)." />
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1e1e20" />
   <meta property="og:title" content="Glint — CI status at a glance" />
@@ -48,14 +48,14 @@
       <div class="hero-actions" id="download">
         <a class="btn btn-primary" href="https://github.com/xinnix/glint/releases/latest">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span data-i18n="hero.download">Download for macOS</span>
+          <span data-i18n="hero.download">Download</span>
         </a>
         <a class="btn btn-ghost" href="https://github.com/xinnix/glint">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           <span data-i18n="hero.star">Star on GitHub</span>
         </a>
       </div>
-      <p class="hero-meta"><span data-i18n="hero.meta">Free &amp; open source (MIT) · macOS · Linux &amp; Windows coming soon</span></p>
+      <p class="hero-meta"><span data-i18n="hero.meta">Free &amp; open source (MIT) · macOS · Linux · Windows</span></p>
       <p class="hero-install" data-i18n="hero.install">Builds are not notarized yet — on first launch, right-click the app and choose Open.</p>
 
       <!-- 面板窗口 mockup（纯 CSS 复刻，固定深色拟真截图） -->
@@ -210,13 +210,13 @@
         </div>
         <div class="card platform">
           <h3>Linux</h3>
-          <span class="pill gray"><span data-i18n="plat.soon">v1.x</span></span>
-          <p data-i18n="plat.linux">deb / AppImage packages planned.</p>
+          <span class="pill green"><span data-i18n="plat.available">Available now</span></span>
+          <p data-i18n="plat.linux">deb / AppImage packages via GitHub Releases.</p>
         </div>
         <div class="card platform">
           <h3>Windows</h3>
-          <span class="pill gray"><span data-i18n="plat.soon2">v1.x</span></span>
-          <p data-i18n="plat.win">MSI installer planned.</p>
+          <span class="pill green"><span data-i18n="plat.available">Available now</span></span>
+          <p data-i18n="plat.win">MSI / NSIS installer via GitHub Releases.</p>
         </div>
       </div>
     </div>
@@ -226,7 +226,7 @@
   <footer class="footer">
     <div class="container">
       <p class="footer-cta" data-i18n="footer.cta">Stop checking CI. Start glancing at it.</p>
-      <a class="btn btn-primary" href="https://github.com/xinnix/glint/releases/latest" data-i18n="hero.download">Download for macOS</a>
+      <a class="btn btn-primary" href="https://github.com/xinnix/glint/releases/latest" data-i18n="hero.download">Download</a>
       <div class="footer-meta">
         <p><span data-i18n="footer.license">Released under the MIT License.</span> · <a href="https://github.com/xinnix/glint">xinnix/glint</a></p>
         <p class="footer-note" data-i18n="footer.note">Glint is an independent open-source project and is not affiliated with GitHub, Inc.</p>

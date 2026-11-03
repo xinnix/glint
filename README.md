@@ -27,7 +27,7 @@ Free and open source (MIT). Runs entirely locally — no server, no telemetry, t
 - **System notifications**: instant on failure; also on running → pass (each toggleable, localized to your language)
   - Clicking a macOS notification brings up the panel with failure details
 - **Zero-config sign-in**: RFC 8628 Device Flow browser authorization (same as `gh auth login --web`), built-in Client ID, then tick the repos you want to monitor
-- **Repository management**: fetch your repos into a checklist (forks/archived filtered), bulk paste, optional local directory scan
+- **Repository management**: fetch your repos into a checklist (forks/archived filtered)
 - **Launch at login**: one toggle in Manage → Refresh & Notifications (applies at next sign-in)
 - Bilingual UI (zh/en, follows system language, manually switchable)
 
@@ -35,9 +35,15 @@ Free and open source (MIT). Runs entirely locally — no server, no telemetry, t
 
 | Platform | Status |
 |----------|--------|
-| macOS | ✅ v1.0 launch platform (current dev builds usable) |
-| Linux | 🚧 v1.x (deb / AppImage) |
-| Windows | 🚧 v1.x (MSI) |
+| macOS | ✅ v1.0 launch platform (universal binary) |
+| Linux | ✅ v1.1 (deb / AppImage) |
+| Windows | ✅ v1.1 (MSI / NSIS installer) |
+
+## Known limitations
+
+- **No code signing yet** (Apple Developer ID / Windows Authenticode pending): on macOS the first launch needs right-click → Open; Windows SmartScreen may warn — choose "More info" → "Run anyway".
+- **Notification click-to-panel** is macOS-only (native UNUserNotificationCenter delegate). On Windows/Linux, clicking a notification just activates the app — open the panel from the tray menu (**Panel**) instead.
+- **Linux**: under Wayland the panel can't be positioned under the tray icon (no global coordinates), so it appears at the system default position; X11 is fully supported. On GNOME the AppIndicator tray opens the menu on left click — use **Panel** in the menu.
 
 ## Quick start
 
@@ -56,10 +62,10 @@ The product mainline is the cross-platform version (Tauri 2, Rust + system WebVi
 cd tauri
 npm install       # only installs @tauri-apps/cli
 npx tauri dev     # run in debug mode
-npx tauri build   # outputs to src-tauri/target/release/bundle/ (.app + DMG)
+npx tauri build   # platform bundles in src-tauri/target/release/bundle/ (DMG / deb+AppImage / MSI+NSIS)
 ```
 
-On Linux, install `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev` etc.; on Windows, WebView2 ships with the OS.
+On Linux, install `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf` etc.; on Windows, WebView2 ships with the OS.
 
 The native macOS Swift version is archived (feature-frozen, maintenance only) but still builds:
 

@@ -46,7 +46,7 @@
 
 ## M2 v1.x「跨平台 + 深度」
 
-- [ ] Linux 打包（deb/AppImage）+ Windows 打包（MSI/NSIS），CI 矩阵构建
+- [x] Linux 打包（deb/AppImage）+ Windows 打包（MSI/NSIS），CI 矩阵构建 ✅（2026-11-03，v1.1.0-beta.1：release.yml 三平台矩阵产物进同一 Draft；ci.yml 三平台编译门禁；check_update 三端资产匹配重写；面板托盘定位按平台分叉；mac CI 现造 GlintLocal 自签证书。通知点击唤起面板非 macOS 暂降级，见 README 已知限制）
 - [ ] 组织仓库：`/user/orgs` → org 仓库列表并入仓库选择流
 - [ ] **PR 视角**：面板按 PR 聚合 CI 状态（哪个 PR 红了），OSS 维护者场景
 - [ ] GitHub Enterprise：自定义 API base URL 配置

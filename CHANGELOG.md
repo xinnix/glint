@@ -6,6 +6,20 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.1.0-beta.1] - 2026-11-03 🎉 三端发布（macOS / Windows / Linux）
+
+### Added
+- **Windows / Linux 安装包**：bundle targets 扩展为三端全集——Linux 产 deb + AppImage（deb 显式声明 libwebkit2gtk-4.1 / libayatana-appindicator3 运行时依赖）、Windows 产 MSI + NSIS 安装器（currentUser 安装模式免 UAC）；托盘点击后面板定位新增 Windows/Linux 物理坐标实现（任务栏在底部时自动翻转到图标上方；Wayland 受系统限制走默认位置）
+- **发布流水线三平台矩阵**（`release.yml`）：tag 触发同时构建 macOS 通用 DMG / Linux deb+AppImage / Windows MSI+NSIS，全部追加到同一 Draft Release；CI 检查矩阵（`ci.yml`）同步扩为三平台编译+测试，Windows/Linux 编译从此进 CI 门禁；macOS CI 现造 GlintLocal 自签证书（产物带稳定 CFBundleIdentifier，优于裸 ad-hoc 随机 id）
+- Windows 用户区域读取（注册表 LocaleName）用于通知语言检测；无 LANG 的环境默认英文（原先默认中文）
+
+### Fixed
+- **检查更新在三端失配**：资产匹配原先按 `x86_64` 字面查找，而 Tauri 实际产物名是 `Glint_x_y_z_x64_en-US.msi` / `glint_x_y_z_amd64.AppImage`（Linux 包名小写）——Windows/Linux 永远匹配不到。重写为平台无关的纯匹配函数（arch 别名 x86_64↔x64/amd64、aarch64↔arm64，大小写不敏感，Windows 优先 NSIS 安装器，macOS Intel 机回退 universal DMG），并配三端产物名回归单测
+
+### Changed
+- Windows 配置目录从 `~/.config/glint` 调整为惯例的 `%APPDATA%\glint`（unix 平台路径不变）
+- README 宣告三端可用并列出已知限制（未签名警示、非 macOS 通知点击降级、Wayland 面板定位）
+
 ## [1.0.1-beta.1] - 2026-11-03
 
 - 版本号提升至 1.0.1（内容同 1.0.0-beta.1 + 托盘镂空方框新图标），用于验证「检查更新 → 横幅 → 下载安装」动态升级链路

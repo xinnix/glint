@@ -12,9 +12,9 @@ const I18N = {
     'hero.tagline': 'CI status at a glance',
     'hero.sub': 'A tray-resident GitHub CI status dashboard — no more opening the browser to check if CI passed. When something fails, drill down to the failing job ▸ step without ever opening a web page.',
     'hero.quote': '“Push, switch away, and relax: it will shout when things go red, and open it to fix.”',
-    'hero.download': 'Download for macOS',
+    'hero.download': 'Download',
     'hero.star': 'Star on GitHub',
-    'hero.meta': 'Free & open source (MIT) · macOS · Linux & Windows coming soon',
+    'hero.meta': 'Free & open source (MIT) · macOS · Linux · Windows',
     'hero.install': 'Builds are not notarized yet — on first launch, right-click the app and choose Open.',
 
     'mock.failing': '1 failing',
@@ -61,11 +61,9 @@ const I18N = {
 
     'plat.title': 'Platforms',
     'plat.available': 'Available now',
-    'plat.soon': 'v1.x',
-    'plat.soon2': 'v1.x',
     'plat.macos': 'Universal binary (Apple Silicon + Intel) via GitHub Releases.',
-    'plat.linux': 'deb / AppImage packages planned.',
-    'plat.win': 'MSI installer planned.',
+    'plat.linux': 'deb / AppImage packages via GitHub Releases.',
+    'plat.win': 'MSI / NSIS installer via GitHub Releases.',
 
     'footer.cta': 'Stop checking CI. Start glancing at it.',
     'footer.license': 'Released under the MIT License.',
@@ -82,9 +80,9 @@ const I18N = {
     'hero.tagline': '一眼即知 CI 状态',
     'hero.sub': '驻守菜单栏的 GitHub CI 状态仪表盘——不用再开网页确认 CI 是否通过。失败时直接下钻到具体的 job ▸ step，全程无需打开浏览器。',
     'hero.quote': '“Push 后放心切走干别的：红了会叫你，点开就能修。”',
-    'hero.download': '下载 macOS 版',
+    'hero.download': '下载安装包',
     'hero.star': '到 GitHub 点个 Star',
-    'hero.meta': '免费开源（MIT）· macOS · Linux 与 Windows 即将支持',
+    'hero.meta': '免费开源（MIT）· macOS · Linux · Windows',
     'hero.install': '当前构建尚未公证——首次启动请右键点击应用并选择「打开」。',
 
     'mock.failing': '1 个失败',
@@ -131,11 +129,9 @@ const I18N = {
 
     'plat.title': '平台支持',
     'plat.available': '现已可用',
-    'plat.soon': 'v1.x 规划中',
-    'plat.soon2': 'v1.x 规划中',
     'plat.macos': '通用二进制（Apple Silicon + Intel），经 GitHub Releases 分发。',
-    'plat.linux': '计划提供 deb / AppImage 安装包。',
-    'plat.win': '计划提供 MSI 安装包。',
+    'plat.linux': 'deb / AppImage 安装包，经 GitHub Releases 分发。',
+    'plat.win': 'MSI / NSIS 安装器，经 GitHub Releases 分发。',
 
     'footer.cta': '别再盯着 CI 等，瞥一眼就好。',
     'footer.license': '基于 MIT 协议开源。',
