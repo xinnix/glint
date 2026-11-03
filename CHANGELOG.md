@@ -1,8 +1,16 @@
 # Changelog
 
-All notable changes to GitCIStatus are documented here. Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
+All notable changes to Glint are documented here. Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
+
+（暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
+
+## [1.0.1-beta.1] - 2026-11-03
+
+- 版本号提升至 1.0.1（内容同 1.0.0-beta.1 + 托盘镂空方框新图标），用于验证「检查更新 → 横幅 → 下载安装」动态升级链路
+
+## [1.0.0-beta.1] - 2026-11-03 🎉 首个公开 Beta
 
 ### Added
 - **官网 landing 页**：`site/` 纯 HTML/CSS/JS 静态页（无构建步骤），GitHub Pages 自动部署（`https://xinnix.github.io/glint/`）；中英双语自动检测+手动切换（模式同应用内 i18n）、跟随系统深浅色、CSS 复刻面板窗口 mockup
