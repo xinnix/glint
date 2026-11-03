@@ -5,6 +5,7 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 ## [Unreleased]
 
 ### Added
+- **官网 landing 页**：`site/` 纯 HTML/CSS/JS 静态页（无构建步骤），GitHub Pages 自动部署（`https://xinnix.github.io/glint/`）；中英双语自动检测+手动切换（模式同应用内 i18n）、跟随系统深浅色、CSS 复刻面板窗口 mockup
 - **失败直接复制错误，不用跳网页**：失败详情新增「复制错误」，一键拉取失败 job 的日志并提取错误行（优先 `##[error]` 标记行，否则取日志末尾），连同仓库/提交/job▸step 上下文复制到剪贴板；日志拉取失败时回退为复制摘要（仓库、job、链接）
 - **登录验证码一键复制**：设备流授权页的大字验证码旁新增复制按钮，免去手动选中誊抄
 - **检查更新**：启动时静默查询 GitHub Releases 最新版，有新版在面板顶部出横幅并一键下载对应平台安装包（零签名依赖；完整静默 updater 待 Apple 签名就绪后启用）

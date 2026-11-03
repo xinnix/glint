@@ -1,6 +1,6 @@
 # Glint
 
-English | [简体中文](README.zh-CN.md)
+English | [简体中文](README.zh-CN.md) | [Landing page](https://xinnix.github.io/glint/)
 
 **A tray-resident GitHub CI status dashboard** — no more opening the browser to check if CI passed. One glance at the tray icon tells you everything; when something fails, drill down to the failing job ▸ step without ever opening a web page.
 

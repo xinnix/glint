@@ -1,6 +1,6 @@
 # Glint
 
-[English](README.md) | 简体中文
+[English](README.md) | 简体中文 | [官网 Landing 页](https://xinnix.github.io/glint/)
 
 **驻守系统托盘的 GitHub CI 状态仪表盘** —— 不用打开网页，看一眼托盘颜色就知道 CI 过没过；失败时不用开网页就能定位到失败的 job ▸ step。
 

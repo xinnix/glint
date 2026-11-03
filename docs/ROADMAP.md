@@ -40,6 +40,7 @@
 ### 门面
 - [x] README 英文化（2026-11-02）：EN 主体 + [README.zh-CN.md]；GIF 演示、截图、badges 待补
 - [x] CHANGELOG.md 起始（2026-11-02）
+- [x] 官网 landing 页（2026-11-03）：`site/` 纯 HTML/CSS/JS 无构建步骤，GitHub Pages 自动部署（`.github/workflows/pages.yml`），https://xinnix.github.io/glint/ ；双语自动检测+切换（模式同 tauri/ui），自动深浅色，CSS 复刻面板 mockup（真实截图/GIF 仍待补）
 
 **验收**：陌生开发者在干净 macOS 上五分钟内完成 安装 → 登录 → 勾仓库 → 收到通知 全流程；release 后应用能收到更新提示并升级成功。
 
