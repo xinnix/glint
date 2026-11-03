@@ -462,6 +462,7 @@ function applyAuthState(present) {
 
 async function renderTokenInfo() {
   const info = await invoke('token_info_cmd');
+  report(`token_info: present=${info.present} source=${info.source}`);
   const text = info.present ? t('tokenPresent') : t('tokenMissing');
   document.getElementById('token-info').textContent = text;
   document.getElementById('token-manage-info').textContent = text;
@@ -697,6 +698,7 @@ function bindEvents() {
 
   listen('device-flow', async (event) => {
     const { ok, error } = event.payload || {};
+    report(`device-flow event received: ok=${ok} error=${error || 'none'}`);
     if (!ok && error === 'cancelled' && Date.now() < ignoreCancelUntil) return;
     deviceLoginBtn.disabled = false;
     deviceCancelBtn.classList.add('hidden');

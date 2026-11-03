@@ -13,6 +13,10 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 - DMG 打包目标（本地 `npx tauri build` 即可产出 DMG）
 - GitHub Actions 发布流水线（tag 触发构建 macOS 通用二进制 → Draft Release；签名/公证步骤已预留）
 
+### Fixed
+- **Token 从未真正落盘**：`keyring = "3"` 未启用任何平台后端 feature，实际编译出 keyring 的内存 mock 存储——登录后重启即失效、`security` CLI 查无此条。现已启用 `apple-native` / `windows-native` / `linux-native`，Token 真正存入系统钥匙串（login keychain），并新增跨进程持久化探针回归测试（`cargo test keyring_roundtrip`）
+- 设备流登录失败时错误显示在错误视图（管理页）而用户停留在引导页，表现为「无反应」；现已在引导页内红字提示
+
 ### Changed
 - **「通过 GitHub 登录」成为唯一鉴权方式**：移除手动粘贴 PAT、gh CLI 与环境变量回退，Token 只存系统钥匙串；配置文件遗留 `token` 字段被忽略（下次保存移除）
 - 移除轮询循环的逐周期 stderr 调试日志（保留启动路由信息、网络回退事件与前端错误上报）

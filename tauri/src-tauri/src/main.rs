@@ -99,6 +99,20 @@ impl Default for Config {
 }
 
 #[cfg(test)]
+mod keyring_probe {
+    // 隔离探针：验证 keyring（旧版 SecKeychain API）在当前 macOS 上是否真的持久化。
+    // 用独立 account，不碰真实 token。cargo test keyring_roundtrip
+    #[test]
+    fn keyring_roundtrip() {
+        let entry = keyring::Entry::new("gitcistatus", "token_probe").unwrap();
+        entry.set_password("probe-value-12345").unwrap();
+        let got = entry.get_password().unwrap();
+        assert_eq!(got, "probe-value-12345");
+        let _ = entry.delete_credential();
+    }
+}
+
+#[cfg(test)]
 mod config_tests {
     use super::*;
 
@@ -211,11 +225,20 @@ fn keyring_entry() -> Option<keyring::Entry> {
 
 fn resolve_token() -> Option<String> {
     let entry = keyring_entry()?;
-    let t = entry.get_password().ok()?;
-    if t.is_empty() {
-        None
-    } else {
-        Some(t)
+    match entry.get_password() {
+        Ok(t) if !t.is_empty() => {
+            eprintln!("[keychain] get_password ok ({} chars)", t.len());
+            Some(t)
+        }
+        Ok(_) => {
+            eprintln!("[keychain] get_password ok but EMPTY");
+            None
+        }
+        Err(err) => {
+            // 读失败不能静默：写成功读失败是「登录成功但卡在引导页」的直接嫌疑
+            eprintln!("[keychain] get_password FAILED: {err}");
+            None
+        }
     }
 }
 
@@ -478,6 +501,7 @@ fn device_flow_start(
         .unwrap_or("https://github.com/login/device")
         .to_string();
     let poll_interval = info["interval"].as_u64().unwrap_or(5).max(3);
+    eprintln!("[device-flow] device code obtained, opening browser, poll every {}s", poll_interval);
     open_external(&verification_url);
 
     let app2 = app.clone();
@@ -516,10 +540,18 @@ fn device_flow_start(
             match github_form_post("https://github.com/login/oauth/access_token", &form) {
                 Ok(v) => {
                     if let Some(token) = v["access_token"].as_str() {
-                        let saved = keyring_entry()
-                            .and_then(|e| e.set_password(token).ok())
-                            .is_some();
-                        if saved {
+                        eprintln!("[device-flow] access_token received, writing keychain");
+                        let entry = keyring_entry();
+                        let saved = match entry {
+                            Some(e) => e.set_password(token).map_err(|err| err.to_string()),
+                            None => Err("keyring unavailable".into()),
+                        };
+                        if let Err(err) = &saved {
+                            // 不能吞掉错误：钥匙串写入失败要能从日志定位
+                            eprintln!("[device-flow] keychain write FAILED: {err}");
+                        }
+                        if saved.is_ok() {
+                            eprintln!("[device-flow] login complete");
                             finish(true, None);
                             wake(&app2);
                         } else {
@@ -531,24 +563,31 @@ fn device_flow_start(
                         "authorization_pending" => {}
                         "slow_down" => interval += 5,
                         "expired_token" => {
+                            eprintln!("[device-flow] expired_token");
                             finish(false, Some("expired"));
                             return;
                         }
                         "access_denied" => {
+                            eprintln!("[device-flow] access_denied");
                             finish(false, Some("denied"));
                             return;
                         }
                         "" => {
+                            eprintln!("[device-flow] bad_response: {}", v.to_string().chars().take(300).collect::<String>());
                             finish(false, Some("bad_response"));
                             return;
                         }
                         other => {
+                            eprintln!("[device-flow] github error: {}", other);
                             finish(false, Some(other));
                             return;
                         }
                     }
                 }
-                Err(_) => {} // 网络抖动：继续重试直到超时/取消
+                Err(e) => {
+                    // 网络抖动：继续重试直到超时/取消；但必须留痕，否则表现为「没反应」
+                    eprintln!("[device-flow] poll network error, will retry: {}", e);
+                }
             }
         }
     });
