@@ -41,6 +41,8 @@ const I18N = {
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
     updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
+    aboutSection: '关于', checkUpdate: '检查更新', upToDate: '已是最新版本 ✓',
+    newAvailShort: '新版本 v{v} 可用', checkUpdateFailed: '检查失败：{msg}',
     rateLimitHint: 'GitHub API 限流中，登录后限额提升至 5000 次/时',
     rateLimitHintAuthed: 'GitHub API 限流中，稍后自动恢复',
     goLogin: '去登录',
@@ -92,6 +94,8 @@ const I18N = {
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
     updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
+    aboutSection: 'About', checkUpdate: 'Check for updates', upToDate: 'Up to date ✓',
+    newAvailShort: 'New version v{v} available', checkUpdateFailed: 'Check failed: {msg}',
     rateLimitHint: 'GitHub API rate limited — sign in for 5,000 req/h',
     rateLimitHintAuthed: 'GitHub API rate limited, will recover shortly',
     goLogin: 'Sign in',
@@ -514,6 +518,7 @@ async function loadManage() {
   document.getElementById('notify-success').checked = currentConfig.notify_on_success;
   document.getElementById('autostart').checked = await invoke('autostart_state');
   document.getElementById('client-id-input').value = currentConfig.oauth_client_id || '';
+  document.getElementById('about-version').textContent = 'Glint v' + (await invoke('app_version'));
   renderManageRepos(currentConfig);
   renderCheckList(); // 保留上次拉取的仓库列表
 }
@@ -767,6 +772,30 @@ function bindEvents() {
 
   // 重新登录：回到登录引导态（复用 onboarding 的登录按钮与状态展示）
   document.getElementById('relogin-btn').addEventListener('click', () => applyAuthState(false));
+
+  // 检查更新：结果直接展示在「关于」区内，有新版附带下载按钮
+  document.getElementById('check-update-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('check-update-btn');
+    const box = document.getElementById('about-status');
+    btn.disabled = true;
+    box.classList.remove('hidden');
+    box.textContent = '…';
+    try {
+      const info = await invoke('check_update');
+      box.textContent = '';
+      if (info && info.has_update) {
+        box.appendChild(document.createTextNode(t('newAvailShort', { v: info.latest }) + ' '));
+        const dl = el('button', 'ghost-btn', t('updateDownload'));
+        dl.addEventListener('click', () => invoke('open_url', { url: info.url }));
+        box.appendChild(dl);
+      } else {
+        box.textContent = t('upToDate');
+      }
+    } catch (e) {
+      box.textContent = t('checkUpdateFailed', { msg: String(e) });
+    }
+    btn.disabled = false;
+  });
 
   const deviceLoginBtn = document.getElementById('device-login-btn');
   const deviceCancelBtn = document.getElementById('device-cancel-btn');

@@ -247,7 +247,7 @@ button.secondary { background: var(--card); color: var(--text); border: 1px soli
 /* 更新横幅 */
 .update-banner {
   display: flex; align-items: center; gap: 8px;
-  margin: 0 12px; padding: 6px 10px;
+  margin: 0 12px 8px; padding: 6px 10px;
   background: color-mix(in srgb, var(--orange, #d97706) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--orange, #d97706) 35%, transparent);
   border-radius: 8px; font-size: 12px;

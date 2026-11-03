@@ -1531,6 +1531,12 @@ fn open_url(_app: AppHandle, url: String) {
     open_external(&url);
 }
 
+/// 「关于」区展示的当前版本号
+#[tauri::command]
+fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
@@ -1827,6 +1833,7 @@ fn main() {
             autostart_state,
             set_autostart_cmd,
             check_update,
+            app_version,
             device_flow_start,
             device_flow_abort
         ])
