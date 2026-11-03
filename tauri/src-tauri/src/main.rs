@@ -496,69 +496,102 @@ struct RepoBrief {
     pushed_at: Option<String>,
 }
 
-#[tauri::command]
-fn fetch_user_repos() -> Result<Vec<RepoBrief>, String> {
-    let token = resolve_token().ok_or("NO_TOKEN")?;
+/// 拉取单页 /user/repos（已过滤 fork 与归档仓库），供并发翻页复用
+fn fetch_user_repos_page(token: &str, page: u32) -> Result<Vec<RepoBrief>, String> {
+    let page_str = page.to_string();
+    let (v, _) = get_json(
+        &gh_url(
+            "/user/repos",
+            &[("per_page", "100"), ("page", page_str.as_str()), ("sort", "pushed")],
+        ),
+        Some(token),
+    )?;
+    let arr = v.as_array().cloned().unwrap_or_default();
     let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for page in 1..=5u32 {
-        let page_str = page.to_string();
-        let (v, _) = get_json(
-            &gh_url(
-                "/user/repos",
-                &[("per_page", "100"), ("page", page_str.as_str()), ("sort", "pushed")],
-            ),
-            Some(token.as_str()),
-        )?;
-        let arr = v.as_array().cloned().unwrap_or_default();
-        if arr.is_empty() {
-            break;
+    for r in arr {
+        let full = r["full_name"].as_str().unwrap_or("").to_string();
+        if full.is_empty() || r["archived"].as_bool().unwrap_or(false) || r["fork"].as_bool().unwrap_or(false) {
+            continue;
         }
-        for r in arr {
-            let full = r["full_name"].as_str().unwrap_or("").to_string();
-            if full.is_empty() || !seen.insert(full.clone()) {
-                continue;
-            }
-            if r["archived"].as_bool().unwrap_or(false) || r["fork"].as_bool().unwrap_or(false) {
-                continue;
-            }
-            out.push(RepoBrief {
-                full_name: full,
-                private: r["private"].as_bool().unwrap_or(false),
-                description: r["description"].as_str().map(String::from),
-                pushed_at: r["pushed_at"].as_str().map(String::from),
-            });
-            if out.len() >= 500 {
-                break;
-            }
-        }
-        if out.len() >= 500 {
-            break;
-        }
+        out.push(RepoBrief {
+            full_name: full,
+            private: r["private"].as_bool().unwrap_or(false),
+            description: r["description"].as_str().map(String::from),
+            pushed_at: r["pushed_at"].as_str().map(String::from),
+        });
     }
     Ok(out)
 }
 
+/// 同步命令跑在主线程会卡住整个 UI，凡阻塞网络 IO 一律丢到后台线程
+#[tauri::command]
+async fn fetch_user_repos() -> Result<Vec<RepoBrief>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let token = resolve_token().ok_or("NO_TOKEN")?;
+        // 各页并发拉取、按页序合并（保持 pushed 排序），最慢一页决定总耗时而非逐页累加
+        const MAX_PAGES: u32 = 5;
+        let results: Vec<Result<Vec<RepoBrief>, String>> = std::thread::scope(|s| {
+            let handles: Vec<_> = (1..=MAX_PAGES)
+                .map(|page| {
+                    let token_ref = &token;
+                    s.spawn(move || fetch_user_repos_page(token_ref, page))
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap_or_else(|_| Err(String::from("THREAD"))))
+                .collect()
+        });
+        let mut out = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for page_repos in results {
+            let page_repos = page_repos?;
+            if page_repos.is_empty() {
+                break;
+            }
+            for repo in page_repos {
+                if seen.insert(repo.full_name.clone()) {
+                    out.push(repo);
+                }
+                if out.len() >= 500 {
+                    break;
+                }
+            }
+            if out.len() >= 500 {
+                break;
+            }
+        }
+        Ok(out)
+    })
+    .await
+    .map_err(|e| format!("JOIN {}", e))?
+}
+
 /// 拉取失败 job 的日志并提取错误摘录——「失败后不打开网页、直接复制错误」的数据源
 #[tauri::command]
-fn fetch_job_log_excerpt(repo: String, job_id: i64) -> Result<String, String> {
+async fn fetch_job_log_excerpt(repo: String, job_id: i64) -> Result<String, String> {
     if job_id <= 0 {
         return Err("NO_JOB".into());
     }
-    let token = resolve_token();
-    let url = gh_url(
-        &format!("/repos/{}/actions/jobs/{}/logs", repo, job_id),
-        &[],
-    );
-    let excerpt = get_text(&url, token.as_deref()).and_then(|log| {
-        let ex = extract_error_excerpt(&log, 120, 8000);
-        if ex.trim().is_empty() {
-            Err("EMPTY_LOG".into())
-        } else {
-            Ok(ex)
-        }
-    })?;
-    Ok(excerpt)
+    // 阻塞网络 IO 放后台线程，避免卡住主线程
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = resolve_token();
+        let url = gh_url(
+            &format!("/repos/{}/actions/jobs/{}/logs", repo, job_id),
+            &[],
+        );
+        let excerpt = get_text(&url, token.as_deref()).and_then(|log| {
+            let ex = extract_error_excerpt(&log, 120, 8000);
+            if ex.trim().is_empty() {
+                Err("EMPTY_LOG".into())
+            } else {
+                Ok(ex)
+            }
+        })?;
+        Ok(excerpt)
+    })
+    .await
+    .map_err(|e| format!("JOIN {}", e))?
 }
 
 #[tauri::command]

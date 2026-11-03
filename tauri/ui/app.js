@@ -32,7 +32,7 @@ const I18N = {
     relogin: '重新登录',
     manageTitle: '仓库管理', reposSection: '监控仓库',
     pickFromGithub: '从 GitHub 选择仓库',
-    fetchRepos: '⟳ 拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…',
+    fetchRepos: '⟳ 拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…', listLoading: '正在拉取仓库列表…',
     checkHint: '勾选即加入监控，取消勾选即移除；可随时重新拉取。',
     noMatch: '没有匹配的仓库', emptyFetched: '未拉取到仓库', fetchFailed: '拉取失败：{msg}',
     refreshNotify: '刷新与通知', interval: '刷新间隔',
@@ -85,7 +85,7 @@ const I18N = {
     relogin: 'Sign in again',
     manageTitle: 'Manage Repositories', reposSection: 'Repositories',
     pickFromGithub: 'Select repos from GitHub',
-    fetchRepos: '⟳ Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…',
+    fetchRepos: '⟳ Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…', listLoading: 'Loading repository list…',
     checkHint: 'Check to monitor, uncheck to remove; re-fetch anytime.',
     noMatch: 'No matching repos', emptyFetched: 'No repos found', fetchFailed: 'Fetch failed: {msg}',
     refreshNotify: 'Refresh & Notifications', interval: 'Interval',
@@ -648,6 +648,7 @@ function deviceWaitingNode(info) {
 
 let fetchedRepos = []; // 最近一次拉取的可监控仓库
 let repoFilter = '';
+let fetchingRepos = false;
 
 // 「从 GitHub 选择仓库」折叠面板：展开时若还没拉取过则自动拉取；
 // 勾选后短暂延时自动收起（连续勾选会重置计时），不再常驻占用页面
@@ -662,15 +663,19 @@ function schedulePickerCollapse() {
 
 async function fetchUserRepos() {
   const btn = document.getElementById('fetch-repos-btn');
+  if (fetchingRepos) return;
   btn.disabled = true;
   const oldText = btn.textContent;
   btn.textContent = t('fetching');
+  fetchingRepos = true;
+  renderCheckList(); // 立即出现加载态，不等网络返回
   try {
     fetchedRepos = await invoke('fetch_user_repos');
     if (!fetchedRepos.length) showManageMessage(t('emptyFetched'));
   } catch (e) {
     showManageMessage(t('fetchFailed', { msg: localizedDeviceError(String(e)) }));
   } finally {
+    fetchingRepos = false;
     btn.disabled = false;
     btn.textContent = oldText;
     renderCheckList();
@@ -682,8 +687,18 @@ function renderCheckList() {
   const filterInput = document.getElementById('repo-filter-input');
   box.innerHTML = '';
   if (!fetchedRepos.length) {
-    box.classList.add('hidden');
-    filterInput.classList.add('hidden');
+    // 首次拉取中：列表区显示 spinner，而不是一片空白
+    if (fetchingRepos) {
+      box.classList.remove('hidden');
+      filterInput.classList.add('hidden');
+      const loading = el('div', 'repo-check-loading');
+      loading.appendChild(el('div', 'spinner'));
+      loading.appendChild(el('span', 'muted small', t('listLoading')));
+      box.appendChild(loading);
+    } else {
+      box.classList.add('hidden');
+      filterInput.classList.add('hidden');
+    }
     return;
   }
   box.classList.remove('hidden');

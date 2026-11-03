@@ -14,8 +14,8 @@ use objc2::{msg_send, ClassType};
 use objc2_foundation::{NSError, NSString};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNMutableNotificationContent, UNNotificationDefaultActionIdentifier,
-    UNNotificationRequest, UNNotificationResponse, UNUserNotificationCenter,
-    UNUserNotificationCenterDelegate,
+    UNNotification, UNNotificationPresentationOptions, UNNotificationRequest,
+    UNNotificationResponse, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
 use tauri::AppHandle;
 
@@ -35,6 +35,19 @@ define_class!(
     unsafe impl NSObjectProtocol for GlintNotifDelegate {}
 
     unsafe impl UNUserNotificationCenterDelegate for GlintNotifDelegate {
+        // 应用在前台（面板聚焦也算）时系统询问如何展示；
+        // 不实现的话前台期间横幅会被静默吞掉——CI 监控恰恰需要随时可见
+        #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
+        unsafe fn will_present_notification(
+            &self,
+            _center: &UNUserNotificationCenter,
+            _notification: &UNNotification,
+            handler: &DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+        ) {
+            eprintln!("[notify] willPresent -> banner");
+            handler.call((UNNotificationPresentationOptions::Banner | UNNotificationPresentationOptions::List,));
+        }
+
         // 用户与通知横幅交互（点击 = DefaultAction）时系统回调
         #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
         unsafe fn did_receive_response(
@@ -43,8 +56,9 @@ define_class!(
             response: &UNNotificationResponse,
             handler: &DynBlock<dyn Fn()>,
         ) {
-            let tapped = response.actionIdentifier().to_string()
-                == UNNotificationDefaultActionIdentifier.to_string();
+            let tapped =
+                response.actionIdentifier().to_string() == UNNotificationDefaultActionIdentifier.to_string();
+            eprintln!("[notify] didReceive response, tapped={tapped}");
             if tapped {
                 if let Some(app) = PANEL_APP.get().and_then(|m| m.lock().unwrap().clone()) {
                     // 窗口操作必须回主线程
@@ -74,7 +88,29 @@ pub fn init(app: AppHandle) {
         center.setDelegate(Some(&d.0));
     }
 
-    let handler = RcBlock::new(|_granted: objc2::runtime::Bool, _err: *mut NSError| {});
+    let handler = RcBlock::new(|granted: objc2::runtime::Bool, err: *mut NSError| {
+        let granted = granted.as_bool();
+        let err_msg = if err.is_null() {
+            "none".to_string()
+        } else {
+            unsafe { (*err).to_string() }
+        };
+        eprintln!("[notify] authorization granted={granted} err={err_msg}");
+        // 被拒时降级申请临时授权（无弹窗、静默送达通知中心）；
+        // 应用前台时配合 willPresent 仍会弹横幅，后台横幅需用户在系统设置手动允许
+        if !granted {
+            let center = UNUserNotificationCenter::currentNotificationCenter();
+            let fallback = RcBlock::new(|granted2: objc2::runtime::Bool, _err2: *mut NSError| {
+                eprintln!("[notify] provisional authorization granted={}", granted2.as_bool());
+            });
+            center.requestAuthorizationWithOptions_completionHandler(
+                UNAuthorizationOptions::Alert
+                    | UNAuthorizationOptions::Sound
+                    | UNAuthorizationOptions::Provisional,
+                &fallback,
+            );
+        }
+    });
     center.requestAuthorizationWithOptions_completionHandler(
         UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
         &handler,
@@ -96,6 +132,14 @@ pub fn notify(app: &AppHandle, title: &str, body: &str, id: &str) {
             &content,
             None,
         );
-        let _ = center.addNotificationRequest_withCompletionHandler(&request, None);
+        let completion = RcBlock::new(|err: *mut NSError| {
+            if err.is_null() {
+                eprintln!("[notify] add ok");
+            } else {
+                unsafe { eprintln!("[notify] add FAILED: {}", (*err).to_string()) };
+            }
+        });
+        center.addNotificationRequest_withCompletionHandler(&request, Some(&completion));
+        eprintln!("[notify] scheduled '{id}'");
     });
 }

@@ -175,6 +175,10 @@ footer {
   max-width: 45%;
 }
 .repo-check-item input[type="checkbox"] { flex-shrink: 0; }
+.repo-check-loading {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 6px;
+}
 .repo-manage-item {
   display: flex; align-items: center; padding: 4px 2px; font-size: 12.5px;
 }
