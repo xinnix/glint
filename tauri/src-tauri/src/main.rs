@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::menu::{IsMenuItem, Menu, MenuItem, MenuEvent, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, WebviewUrl, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 #[cfg(not(target_os = "macos"))]
 use tauri_plugin_notification::NotificationExt;
 
@@ -2128,9 +2130,13 @@ fn main() {
         .expect("Glint 启动失败")
         .run(|app, event| {
             // macOS：点击系统通知会激活应用并触发 reopen；此时唤起面板，
-            // 失败仓库已置顶，一眼可见失败详情（通知插件桌面端无点击回调）
+            // 失败仓库已置顶，一眼可见失败详情（通知插件桌面端无点击回调）。
+            // RunEvent::Reopen 是 macOS 特有变体，非 macOS 无等价机制（README 已知限制）
+            #[cfg(target_os = "macos")]
             if let RunEvent::Reopen { .. } = event {
                 show_panel(app, false);
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
         });
 }
