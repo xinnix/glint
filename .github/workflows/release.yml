@@ -52,11 +52,15 @@ jobs:
           node-version: 22
 
       # CI 上没有 tauri.conf.json 指定的 GlintLocal 签名身份，bundler 的 codesign 会失败。
-      # 现造一枚同名自签证书导入 login keychain。两个兼容性要点（均已本地实测）：
+      # 现造一枚同名自签证书 + 专用钥匙串。四个兼容性/稳定性要点（均已实测）：
       # ① 证书必须带 codeSigning EKU（-addext extendedKeyUsage），否则 codesign
       #    根本不把它当签名身份（"no identity found"，即使 import 显示成功）；
       # ② p12 用旧式加密参数（-macalg sha1 + PBE-SHA1-3DES），新式 AES+SHA2 MAC
-      #    会被 macOS security import 拒绝（MAC verification failed）。
+      #    会被 macOS security import 拒绝（MAC verification failed）；
+      # ③ 必须 set-key-partition-list 预授权：只 import 不设 partition list 时，
+      #    codesign 首次使用私钥会尝试弹交互授权框——无头 runner 上永久挂起
+      #    （实测 codesign 进程挂 40 分钟无输出）；
+      # ④ 用专用钥匙串而非 login keychain：set-key-partition-list 需要钥匙串密码。
       # 自签证书未入信任链，对用户侧 Gatekeeper 行为与 ad-hoc 等价（首启右键打开），
       # 但产物带稳定 CFBundleIdentifier，优于裸 ad-hoc 的随机 glint-<hex> id。
       - name: Create ephemeral signing identity (GlintLocal)
@@ -67,7 +71,13 @@ jobs:
             -addext "extendedKeyUsage=codeSigning" \
             -addext "basicConstraints=critical,CA:FALSE"
           openssl pkcs12 -export -inkey key.pem -in cert.pem -out GlintLocal.p12 -password pass:glint-ci -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES
-          security import GlintLocal.p12 -k "$HOME/Library/Keychains/login.keychain-db" -P glint-ci -T /usr/bin/codesign
+          KC="$HOME/Library/Keychains/glint-build.keychain"
+          security create-keychain -p glint-ci "$KC"
+          security unlock-keychain -p glint-ci "$KC"
+          security import GlintLocal.p12 -k "$KC" -P glint-ci -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple-signing -k glint-ci "$KC"
+          security list-keychains -s "$KC" "$HOME/Library/Keychains/login.keychain-db"
+          security find-identity -p codesigning "$KC" || true
 
       # Developer ID 签名就绪后替换上方临时证书步骤：
       # - name: Import signing certificate
@@ -83,6 +93,7 @@ jobs:
 
       - name: Build
         working-directory: tauri
+        timeout-minutes: 30
         env:
           # runner 无 FUSE，AppImage 工具链需要自解压模式（非 Linux 平台无副作用）
           APPIMAGE_EXTRACT_AND_RUN: "1"
