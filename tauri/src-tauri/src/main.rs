@@ -1811,8 +1811,9 @@ fn pick_update_asset(
 mod update_asset_tests {
     use super::pick_update_asset;
 
-    // 用 Tauri 真实产物命名做三端匹配回归（大小写、arch 别名都要对得上）
-    const MAC: &[&str] = &["Glint_1.1.0.app.tar.gz", "Glint_1.1.0_aarch64.dmg"];
+    // 用 Tauri 真实产物命名做三端匹配回归（大小写、arch 别名都要对得上）。
+    // 注意 CI universal 构建的 DMG 名是 *_universal.dmg（本机单架构才是 *_aarch64.dmg）
+    const MAC: &[&str] = &["Glint_1.1.0.app.tar.gz", "Glint_1.1.0_universal.dmg"];
     const WIN: &[&str] = &[
         "Glint_1.1.0_x64_en-US.msi",
         "Glint_1.1.0_x64-setup.exe",
@@ -1834,9 +1835,21 @@ mod update_asset_tests {
 
     #[test]
     fn mac_intel_falls_back_to_universal_dmg() {
-        // universal DMG 名字固定带 aarch64；Intel 机靠 fallback 兜底而非退回 release 页
+        // universal DMG 名字不含 arch 关键词：arm/Intel 都按纯扩展名匹配拿到包
+        // （"universal" 不在架构关键词表里，不会被当异架构排除）
         let i = pick_update_asset(MAC, &[".dmg"], &["x64", "x86_64"], true).unwrap();
         assert!(MAC[i].ends_with(".dmg"), "picked {}", MAC[i]);
+    }
+
+    #[test]
+    fn mac_prefers_arch_named_dmg_when_present() {
+        // 若同名版本既有 universal 又有 aarch64 命名：arm 机优先精确命中，Intel 机
+        // 排除异架构（aarch64 关键词）后拿 universal
+        let both = ["Glint_1.1.0_universal.dmg", "Glint_1.1.0_aarch64.dmg"];
+        let arm = pick_update_asset(&both, &[".dmg"], &["aarch64", "arm64"], true).unwrap();
+        assert!(both[arm].contains("aarch64"), "picked {}", both[arm]);
+        let intel = pick_update_asset(&both, &[".dmg"], &["x64", "x86_64"], true).unwrap();
+        assert!(both[intel].contains("universal"), "picked {}", both[intel]);
     }
 
     #[test]
