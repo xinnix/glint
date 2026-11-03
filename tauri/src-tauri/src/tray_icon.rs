@@ -151,6 +151,12 @@ mod preview {
     #[test]
     fn dump_tray_preview() {
         let rgba = super::render_tray_rgba(29, 185, 84, 128); // 绿色状态样例
-        std::fs::write("/tmp/tray_preview.rgba", rgba).unwrap();
+        // unix 保持 /tmp（配合 rgba2png.py 的固定路径）；Windows 无 /tmp，走系统临时目录
+        let path = if cfg!(windows) {
+            std::env::temp_dir().join("tray_preview.rgba")
+        } else {
+            std::path::PathBuf::from("/tmp/tray_preview.rgba")
+        };
+        std::fs::write(&path, rgba).unwrap();
     }
 }
