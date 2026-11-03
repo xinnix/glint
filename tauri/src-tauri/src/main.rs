@@ -1112,34 +1112,10 @@ fn status_color(status: &str) -> (u8, u8, u8) {
     }
 }
 
-/// 系统是否深色外观（托盘图形随之取白色/深色变体）。
-/// `defaults read` 在浅色模式下因键不存在而失败；60s TTL 缓存避免每轮轮询都起进程。
-#[cfg(target_os = "macos")]
-fn menu_bar_is_dark() -> bool {
-    static CACHE: OnceLock<Mutex<(std::time::Instant, bool)>> = OnceLock::new();
-    let slot = CACHE.get_or_init(|| Mutex::new((std::time::Instant::now() - Duration::from_secs(60), true)));
-    let mut guard = slot.lock().unwrap();
-    if guard.0.elapsed() < Duration::from_secs(60) {
-        return guard.1;
-    }
-    let dark = std::process::Command::new("defaults")
-        .args(["read", "-g", "AppleInterfaceStyle"])
-        .output()
-        .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim().eq_ignore_ascii_case("dark"))
-        .unwrap_or(true);
-    *guard = (std::time::Instant::now(), dark);
-    dark
-}
-
-#[cfg(not(target_os = "macos"))]
-fn menu_bar_is_dark() -> bool {
-    true // 非 macOS 暂不探测，保持白色图形变体
-}
-
-/// 程序生成的托盘图标：git 分支图形 + 状态角标（RGBA），无需外部资源；
-/// 每次重建托盘时按当前系统外观取深/浅变体（轮询周期内即生效）
+/// 程序生成的托盘图标：镂空方形框 + git 分支 + 状态角标（RGBA），恒定白色线条 +
+/// 半透明深色外沿（浅色菜单栏下的对比度兜底），无需外部资源、不依赖系统外观探测
 fn tray_image(r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
-    let buf = tray_icon::render_tray_rgba(r, g, b, 32, menu_bar_is_dark());
+    let buf = tray_icon::render_tray_rgba(r, g, b, 32);
     tauri::image::Image::new_owned(buf, 32, 32)
 }
 

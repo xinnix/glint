@@ -23,7 +23,7 @@ All notable changes to GitCIStatus are documented here. Format: [Keep a Changelo
 ### Changed
 - **项目更名 GitCIStatus → Glint**（2026-11-03）：仓库 `xinnix/glint`，应用名/包名/标识符（`io.github.glint`）/托盘菜单/通知全面更名；启动时自动迁移——配置目录 `~/.config/gitcistatus` → `~/.config/glint`、钥匙串 service 同步迁移、清理旧名 LaunchAgent plist。slogan：CI status at a glance
 - **全新应用图标**：产品视觉定稿——深色圆角方形 + Feather 风格 git-branch 白描边 + 绿色状态点（`scripts/render-appicon.swift` 可复现渲染全套尺寸）
-- **托盘图标跟随系统深浅色外观**自动切换白/深色图形变体（60s TTL 探测，轮询周期内生效）
+- **托盘图标重设计**：镂空圆角方形外框 + 内嵌 Feather 风格 git-branch，全部描边线条、恒定白色 + 半透明深色外沿（深浅菜单栏均可见，不再依赖系统外观探测——半透明菜单栏+深色壁纸场景下探测会误判）
 - 403 限流时面板顶部出提示横幅（未登录附「去登录」入口）
 - **管理页添加仓库只保留「从 GitHub 选择」**：移除手动输入 owner/repo 与扫描本地 code 目录两个入口；改为折叠面板（默认收起、首次展开自动拉取仓库列表），勾选完 1.5s 后自动收起，不再常驻占用页面
 - **「通过 GitHub 登录」成为唯一鉴权方式**：移除手动粘贴 PAT、gh CLI 与环境变量回退，Token 只存系统钥匙串；配置文件遗留 `token` 字段被忽略（下次保存移除）
