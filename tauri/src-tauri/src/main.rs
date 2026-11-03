@@ -233,10 +233,25 @@ struct CheckRun {
 // ============ 配置 ============
 
 fn config_path() -> std::path::PathBuf {
-    let mut p = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    p.push(".config/glint");
+    let mut p = config_dir_base();
     let _ = std::fs::create_dir_all(&p);
     p.push("config.json");
+    p
+}
+
+/// 配置目录：unix 保持 ~/.config/glint（历史路径，已有用户数据在此，勿改）；
+/// Windows 用惯例位置 %APPDATA%\glint（GUI 进程没有 HOME 也没有 .config 惯例）
+#[cfg(windows)]
+fn config_dir_base() -> std::path::PathBuf {
+    dirs::config_dir()
+        .map(|d| d.join("glint"))
+        .unwrap_or_else(|| std::path::PathBuf::from("glint"))
+}
+
+#[cfg(not(windows))]
+fn config_dir_base() -> std::path::PathBuf {
+    let mut p = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    p.push(".config/glint");
     p
 }
 
@@ -1202,14 +1217,15 @@ fn tray_image(r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(buf, 32, 32)
 }
 
-/// 面板定位到托盘图标下方居中。
-/// 双屏坑：tray-icon 上报的 position/rect 是「全局屏幕逻辑坐标 × 托盘所在屏 scale」
-/// 的伪物理坐标（tray-icon macos 源码用 NSEvent 坐标 × status 按钮 window 的
+/// 面板定位到托盘图标下方居中（macOS 版）。
+/// 双屏坑：tray-icon 在 macOS 上报的 position/rect 是「全局屏幕逻辑坐标 × 托盘所在屏
+/// scale」的伪物理坐标（tray-icon macos 源码用 NSEvent 坐标 × status 按钮 window 的
 /// backingScaleFactor），而 tao 的 set_position(PhysicalPosition) 又按窗口当前所在屏
 /// 的 scale 反推逻辑点——两屏缩放不同时两把尺子不一致，副屏点击后面板错位。
 /// 因此先把坐标还原为全局逻辑点（points），再用 LogicalPosition 设置（tao 对
 /// Logical 原样透传给 setFrameTopLeftPoint，不经过窗口当前屏换算），并夹进
 /// 托盘所在显示器的可见范围。
+#[cfg(target_os = "macos")]
 fn position_panel_below_tray(
     w: &tauri::WebviewWindow,
     click: PhysicalPosition<f64>,
@@ -1256,6 +1272,61 @@ fn position_panel_below_tray(
     let y = (icon_bottom + 6.0).clamp(my, (my + mh - ph).max(my));
 
     let _ = w.set_position(tauri::LogicalPosition::new(x, y));
+}
+
+/// 面板定位到托盘图标下方居中（Win/Linux 版）。
+/// tray-icon 在这两端上报的是真实物理像素坐标（无 macOS 的 scale 伪坐标问题），
+/// 直接 PhysicalPosition 定位即可。Windows 任务栏常驻屏幕底部：下方放不下则
+/// 翻转到图标上方。Wayland 无全局坐标概念，合成器会忽略此定位（面板出现在
+/// 默认位置，不 crash），X11 正常。
+#[cfg(not(target_os = "macos"))]
+fn position_panel_below_tray(
+    w: &tauri::WebviewWindow,
+    click: PhysicalPosition<f64>,
+    rect: tauri::Rect,
+) {
+    let _ = click;
+    let rpos = rect.position.to_physical::<f64>(1.0);
+    let rsize = rect.size.to_physical::<f64>(1.0);
+    let icon_cx = rpos.x + rsize.width / 2.0;
+    let icon_bottom = rpos.y + rsize.height;
+
+    // 面板物理尺寸 = outer_size（物理像素）
+    let (pw, ph) = match w.outer_size() {
+        Ok(s) => (s.width as f64, s.height as f64),
+        Err(_) => (390.0, 560.0),
+    };
+
+    // 托盘图标中心所在的显示器；找不到回退主屏
+    let mon = w
+        .available_monitors()
+        .ok()
+        .and_then(|ms| {
+            ms.into_iter().find(|m| {
+                let (mp, msz) = (m.position(), m.size());
+                let (cx, cy) = (rpos.x + rsize.width / 2.0, rpos.y + rsize.height / 2.0);
+                cx >= mp.x as f64
+                    && cx < (mp.x + msz.width as i32) as f64
+                    && cy >= mp.y as f64
+                    && cy < (mp.y + msz.height as i32) as f64
+            })
+        })
+        .or_else(|| w.primary_monitor().ok().flatten());
+    let Some(mon) = mon else { return };
+    let (mx, my, mw, mh) = (
+        mon.position().x as f64,
+        mon.position().y as f64,
+        mon.size().width as f64,
+        mon.size().height as f64,
+    );
+
+    let x = (icon_cx - pw / 2.0).clamp(mx + 4.0, (mx + mw - pw - 4.0).max(mx + 4.0));
+    let mut y = icon_bottom + 6.0;
+    if y + ph > my + mh {
+        // 底部放不下（任务栏在下）：翻到图标上方
+        y = (rpos.y - ph - 6.0).max(my);
+    }
+    let _ = w.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
 }
 
 fn build_menu(app: &AppHandle, states: &[RepoState], failed: i64) -> tauri::Result<Menu<tauri::Wry>> {
@@ -1360,23 +1431,42 @@ fn now_ms() -> u64 {
 
 // ============ 通知文案（按 config.lang，空则跟随系统语言） ============
 
+/// 区域标识 → 通知语言：zh* 视为中文，其余一律英文（国际化默认；
+/// 旧逻辑非英文即中文，会让其他语种用户收到中文通知）
+fn locale_to_lang(locale: &str) -> String {
+    let l = locale.trim().to_ascii_lowercase();
+    if l.starts_with("zh") { "zh".into() } else { "en".into() }
+}
+
 fn detect_lang() -> String {
     #[cfg(target_os = "macos")]
     {
         // GUI 启动不继承 shell 的 LANG，读系统区域设置
         if let Ok(out) = std::process::Command::new("defaults").args(["read", "-g", "AppleLocale"]).output() {
             if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout);
-                return if s.trim().to_ascii_lowercase().starts_with("en") { "en".into() } else { "zh".into() };
+                return locale_to_lang(&String::from_utf8_lossy(&out.stdout));
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Windows GUI 进程没有 LANG，读用户区域（注册表 LocaleName，如 zh-CN）；
+        // reg query 输出形如 "    LocaleName    REG_SZ    zh-CN"，取末字段
+        if let Ok(out) = std::process::Command::new("reg")
+            .args(["query", r"HKCU\Control Panel\International", "/v", "LocaleName"])
+            .output()
+        {
+            if out.status.success() {
+                if let Some(loc) = String::from_utf8_lossy(&out.stdout).split_whitespace().last() {
+                    return locale_to_lang(loc);
+                }
             }
         }
     }
     if let Ok(l) = std::env::var("LANG") {
-        if l.to_ascii_lowercase().starts_with("en") {
-            return "en".into();
-        }
+        return locale_to_lang(&l);
     }
-    "zh".into()
+    "en".into()
 }
 
 fn notif_lang(cfg_lang: &str) -> bool {
@@ -1669,6 +1759,111 @@ fn parse_ver(v: &str) -> (u32, u32, u32) {
     )
 }
 
+/// 已知架构关键词全集：用于识别「异架构」资产（如 Intel 机器撞上 arm64 专属包）
+const ARCH_KEYWORDS: &[&str] = &[
+    "x86_64", "x64", "amd64", "x86", "i686", "i386", "aarch64", "arm64", "armv7",
+];
+
+/// 从 Release 资产名中挑出当前平台应下载的安装包（返回下标）。
+/// 纯函数、平台无关（平台参数由调用方以 cfg!(...) 传入），三端规则各自可单测：
+/// - 扩展名必中，exts 顺序即优先级（Windows 下 NSIS 靠 -setup bonus 压过 msi）
+/// - arch 命中加分；命中**别的**架构关键词直接排除（异架构包装上也没用）
+/// - mac_fallback：全部被排除时接受第一个扩展名命中的资产——macOS universal 产物
+///   固定命名 *_aarch64.dmg，Intel 机不能因此拿不到包退回 release 页
+fn pick_update_asset(
+    names: &[&str],
+    exts: &[&str],
+    archs: &[&str],
+    mac_fallback: bool,
+) -> Option<usize> {
+    let lower: Vec<String> = names.iter().map(|n| n.to_ascii_lowercase()).collect();
+    let mut best: Option<(i32, usize)> = None;
+    for (i, name) in lower.iter().enumerate() {
+        let Some(ext_rank) = exts.iter().position(|e| name.ends_with(e)) else {
+            continue;
+        };
+        let hit = archs.iter().any(|a| name.contains(a));
+        let wrong_arch = !hit
+            && ARCH_KEYWORDS
+                .iter()
+                .any(|k| name.contains(k) && !archs.contains(k));
+        if wrong_arch {
+            continue;
+        }
+        let score = 10 - ext_rank as i32
+            + i32::from(hit) * 2
+            + i32::from(name.contains("-setup"));
+        if best.map_or(true, |(s, _)| score > s) {
+            best = Some((score, i));
+        }
+    }
+    if best.is_none() && mac_fallback {
+        return lower
+            .iter()
+            .position(|n| exts.iter().any(|e| n.ends_with(e)));
+    }
+    best.map(|(_, i)| i)
+}
+
+#[cfg(test)]
+mod update_asset_tests {
+    use super::pick_update_asset;
+
+    // 用 Tauri 真实产物命名做三端匹配回归（大小写、arch 别名都要对得上）
+    const MAC: &[&str] = &["Glint_1.1.0.app.tar.gz", "Glint_1.1.0_aarch64.dmg"];
+    const WIN: &[&str] = &[
+        "Glint_1.1.0_x64_en-US.msi",
+        "Glint_1.1.0_x64-setup.exe",
+        "glint_1.1.0_amd64.AppImage",
+        "glint_1.1.0_amd64.deb",
+        "Glint_1.1.0_x64-setup.exe.blockmap",
+    ];
+    const LIN: &[&str] = &[
+        "glint_1.1.0_amd64.deb",
+        "glint_1.1.0_amd64.AppImage",
+        "Glint_1.1.0_x64_en-US.msi",
+    ];
+
+    #[test]
+    fn mac_picks_dmg() {
+        let i = pick_update_asset(MAC, &[".dmg"], &["aarch64", "arm64"], true).unwrap();
+        assert!(MAC[i].ends_with(".dmg"), "picked {}", MAC[i]);
+    }
+
+    #[test]
+    fn mac_intel_falls_back_to_universal_dmg() {
+        // universal DMG 名字固定带 aarch64；Intel 机靠 fallback 兜底而非退回 release 页
+        let i = pick_update_asset(MAC, &[".dmg"], &["x64", "x86_64"], true).unwrap();
+        assert!(MAC[i].ends_with(".dmg"), "picked {}", MAC[i]);
+    }
+
+    #[test]
+    fn windows_prefers_nsis_setup_exe_over_msi() {
+        let i = pick_update_asset(WIN, &[".exe", ".msi"], &["x64", "amd64", "x86_64"], false)
+            .unwrap();
+        assert!(WIN[i].contains("-setup.exe"), "picked {}", WIN[i]);
+    }
+
+    #[test]
+    fn linux_picks_appimage_ignoring_deb_and_msi() {
+        let i = pick_update_asset(LIN, &[".appimage"], &["amd64", "x86_64", "x64"], false)
+            .unwrap();
+        assert!(LIN[i].to_ascii_lowercase().ends_with(".appimage"));
+    }
+
+    #[test]
+    fn wrong_arch_asset_rejected() {
+        let only_arm = ["Glint_1.1.0_arm64-setup.exe"];
+        assert!(pick_update_asset(
+            &only_arm,
+            &[".exe", ".msi"],
+            &["x64", "amd64", "x86_64"],
+            false
+        )
+        .is_none());
+    }
+}
+
 #[tauri::command]
 fn check_update() -> Result<Option<UpdateInfo>, String> {
     const OWNER_REPO: &str = "xinnix/glint";
@@ -1688,20 +1883,16 @@ fn check_update() -> Result<Option<UpdateInfo>, String> {
         return Ok(None);
     }
 
-    // 按平台/架构匹配安装包资产；匹配不到就退回 release 页
-    let ext = if cfg!(target_os = "macos") {
-        ".dmg"
+    // 按平台/架构挑安装包资产；挑不到就退回 release 页。
+    // Tauri 实际产物命名（大小写、arch 别名都与直觉不同，勿按 x86_64 字面匹配）：
+    // Glint_1.1.0_x64_en-US.msi / Glint_1.1.0_x64-setup.exe / glint_1.1.0_amd64.AppImage
+    // （Linux 包名小写）/ Glint_1.1.0_aarch64.dmg（universal）
+    let (exts, archs, mac_fallback) = if cfg!(target_os = "macos") {
+        (&[".dmg"][..], &["aarch64", "arm64"][..], true)
     } else if cfg!(target_os = "windows") {
-        ".msi"
+        (&[".exe", ".msi"][..], &["x64", "amd64", "x86_64"][..], false)
     } else {
-        ".AppImage"
-    };
-    let arch = if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else if cfg!(target_arch = "x86_64") {
-        "x86_64"
-    } else {
-        ""
+        (&[".appimage"][..], &["amd64", "x86_64", "x64"][..], false)
     };
     let release_page = rel["html_url"]
         .as_str()
@@ -1709,14 +1900,10 @@ fn check_update() -> Result<Option<UpdateInfo>, String> {
         .unwrap_or_else(|| format!("https://github.com/{}/releases/latest", OWNER_REPO));
     let mut url = release_page.clone();
     if let Some(assets) = rel["assets"].as_array() {
-        for a in assets {
-            let (name, link) = (
-                a["name"].as_str().unwrap_or(""),
-                a["browser_download_url"].as_str().unwrap_or(""),
-            );
-            if name.ends_with(ext) && (arch.is_empty() || name.contains(arch)) {
+        let names: Vec<&str> = assets.iter().filter_map(|a| a["name"].as_str()).collect();
+        if let Some(i) = pick_update_asset(&names, exts, archs, mac_fallback) {
+            if let Some(link) = assets[i]["browser_download_url"].as_str() {
                 url = link.to_string();
-                break;
             }
         }
     }
