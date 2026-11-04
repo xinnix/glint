@@ -6,6 +6,19 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.2.0-beta.1] - 2026-11-04
+
+### Added
+- **DMG 安装背景**：安装窗口自定义 660×400 背景图（Glint → Applications 拖拽布局），由 `tauri.conf.json` 的 bundler dmg 配置驱动
+- **官网 macOS 首次启动指引**：`site/` 新增中英双语 section——拖拽安装示意 + 未签名应用的放行三步，附右键打开、Apple Silicon「已损坏」`xattr -cr` 两条兜底
+
+### Fixed
+- **「检查更新」点击冻住整个 UI**（Tauri v2 同步命令跑在主线程）：`check_update` 的阻塞网络请求（最长 2×20s）移入后台线程；同病相怜的命令一并修复——`device_flow_start`（登录按钮卡顿）、`token_info_cmd`（钥匙串读取）、`get_config`/`save_config`（配置读写）、`autostart_state`/`set_autostart_cmd`（Windows reg 子进程）、`import_local_dir`（目录扫描），统一 `async fn` + `spawn_blocking`；纯内存命令保持同步
+- **mac CI 签名挂死**：headless runner 上手搓 `security` + codesign 会因交互授权无人应答而永久挂起（实测 40 分钟超时）——改用 tauri-bundler 原生 `APPLE_CERTIFICATE` 机制：现造带 codeSigning EKU、Developer ID 前缀 CN + OU 的自签证书，bundler 自建临时钥匙串并以显式 `--keychain` 路径签名；Build 步骤加 30 分钟超时兜底
+
+### Changed
+- 更新检查的资产名单测试 fixture 对齐 CI 实际产物命名（universal DMG），并补混合 universal + 架构命名资产的用例
+
 ## [1.1.0-beta.1] - 2026-11-03 🎉 三端发布（macOS / Windows / Linux）
 
 ### Added
