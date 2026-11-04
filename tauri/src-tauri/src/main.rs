@@ -612,9 +612,9 @@ async fn fetch_job_log_excerpt(repo: String, job_id: i64) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn device_flow_start(
+async fn device_flow_start(
     app: AppHandle,
-    state: tauri::State<Shared>,
+    state: tauri::State<'_, Shared>,
     client_id: String,
 ) -> Result<DeviceCodeInfo, String> {
     let cid = {
@@ -638,10 +638,16 @@ fn device_flow_start(
         slot.as_ref().unwrap().clone()
     };
 
-    let info: serde_json::Value = github_form_post(
-        "https://github.com/login/device/code",
-        &[("client_id", cid.as_str()), ("scope", "repo")],
-    )?;
+    // 阻塞网络 IO 丢到后台线程：同步命令跑在主线程会冻住整个 UI
+    let cid_for_req = cid.clone();
+    let info: serde_json::Value = tauri::async_runtime::spawn_blocking(move || {
+        github_form_post(
+            "https://github.com/login/device/code",
+            &[("client_id", cid_for_req.as_str()), ("scope", "repo")],
+        )
+    })
+    .await
+    .map_err(|e| format!("JOIN {}", e))??;
     let device_code = info["device_code"].as_str().ok_or("BAD_RESPONSE")?.to_string();
     let user_code = info["user_code"].as_str().ok_or("BAD_RESPONSE")?.to_string();
     let verification_url = info["verification_uri_complete"]
@@ -1689,13 +1695,16 @@ fn get_snapshot(app: AppHandle) -> Snapshot {
 }
 
 #[tauri::command]
-fn get_config() -> Config {
-    load_config()
+async fn get_config() -> Config {
+    // 配置文件磁盘 IO 丢到后台线程，避免占住主线程
+    tauri::async_runtime::spawn_blocking(load_config)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-fn save_config(app: AppHandle, config: Config) {
-    let _ = save_config_file(&config);
+async fn save_config(app: AppHandle, config: Config) {
+    let _ = tauri::async_runtime::spawn_blocking(move || save_config_file(&config)).await;
     wake(&app);
 }
 
@@ -1705,13 +1714,19 @@ fn refresh_now(app: AppHandle) {
 }
 
 #[tauri::command]
-fn token_info_cmd() -> TokenInfo {
-    token_info()
+async fn token_info_cmd() -> TokenInfo {
+    // 钥匙串读取是阻塞系统调用（ACL 未信任时还可能弹授权框），丢到后台线程
+    tauri::async_runtime::spawn_blocking(token_info)
+        .await
+        .unwrap_or_else(|_| TokenInfo { present: false, source: "none".into() })
 }
 
 #[tauri::command]
-fn import_local_dir() -> Vec<String> {
-    scan_local_dir()
+async fn import_local_dir() -> Vec<String> {
+    // 目录树扫描是阻塞文件 IO，丢到后台线程
+    tauri::async_runtime::spawn_blocking(scan_local_dir)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -1880,67 +1895,78 @@ mod update_asset_tests {
 }
 
 #[tauri::command]
-fn check_update() -> Result<Option<UpdateInfo>, String> {
-    const OWNER_REPO: &str = "xinnix/glint";
-    let current = env!("CARGO_PKG_VERSION");
+async fn check_update() -> Result<Option<UpdateInfo>, String> {
+    // 阻塞网络 IO 丢到后台线程：同步命令跑在主线程会冻住整个 UI
+    tauri::async_runtime::spawn_blocking(|| {
+        const OWNER_REPO: &str = "xinnix/glint";
+        let current = env!("CARGO_PKG_VERSION");
 
-    // 404（还没有正式 release）与网络失败都静默降级为「无更新」，不影响主功能
-    let Ok((rel, _)) = get_json(
-        &format!("https://api.github.com/repos/{}/releases/latest", OWNER_REPO),
-        None,
-    ) else {
-        return Ok(None);
-    };
-    let Some(tag) = rel["tag_name"].as_str().filter(|t| !t.is_empty()) else {
-        return Ok(None);
-    };
-    if parse_ver(tag) <= parse_ver(current) {
-        return Ok(None);
-    }
+        // 404（还没有正式 release）与网络失败都静默降级为「无更新」，不影响主功能
+        let Ok((rel, _)) = get_json(
+            &format!("https://api.github.com/repos/{}/releases/latest", OWNER_REPO),
+            None,
+        ) else {
+            return Ok(None);
+        };
+        let Some(tag) = rel["tag_name"].as_str().filter(|t| !t.is_empty()) else {
+            return Ok(None);
+        };
+        if parse_ver(tag) <= parse_ver(current) {
+            return Ok(None);
+        }
 
-    // 按平台/架构挑安装包资产；挑不到就退回 release 页。
-    // Tauri 实际产物命名（大小写、arch 别名都与直觉不同，勿按 x86_64 字面匹配）：
-    // Glint_1.1.0_x64_en-US.msi / Glint_1.1.0_x64-setup.exe / glint_1.1.0_amd64.AppImage
-    // （Linux 包名小写）/ Glint_1.1.0_aarch64.dmg（universal）
-    let (exts, archs, mac_fallback) = if cfg!(target_os = "macos") {
-        (&[".dmg"][..], &["aarch64", "arm64"][..], true)
-    } else if cfg!(target_os = "windows") {
-        (&[".exe", ".msi"][..], &["x64", "amd64", "x86_64"][..], false)
-    } else {
-        (&[".appimage"][..], &["amd64", "x86_64", "x64"][..], false)
-    };
-    let release_page = rel["html_url"]
-        .as_str()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("https://github.com/{}/releases/latest", OWNER_REPO));
-    let mut url = release_page.clone();
-    if let Some(assets) = rel["assets"].as_array() {
-        let names: Vec<&str> = assets.iter().filter_map(|a| a["name"].as_str()).collect();
-        if let Some(i) = pick_update_asset(&names, exts, archs, mac_fallback) {
-            if let Some(link) = assets[i]["browser_download_url"].as_str() {
-                url = link.to_string();
+        // 按平台/架构挑安装包资产；挑不到就退回 release 页。
+        // Tauri 实际产物命名（大小写、arch 别名都与直觉不同，勿按 x86_64 字面匹配）：
+        // Glint_1.1.0_x64_en-US.msi / Glint_1.1.0_x64-setup.exe / glint_1.1.0_amd64.AppImage
+        // （Linux 包名小写）/ Glint_1.1.0_aarch64.dmg（universal）
+        let (exts, archs, mac_fallback) = if cfg!(target_os = "macos") {
+            (&[".dmg"][..], &["aarch64", "arm64"][..], true)
+        } else if cfg!(target_os = "windows") {
+            (&[".exe", ".msi"][..], &["x64", "amd64", "x86_64"][..], false)
+        } else {
+            (&[".appimage"][..], &["amd64", "x86_64", "x64"][..], false)
+        };
+        let release_page = rel["html_url"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("https://github.com/{}/releases/latest", OWNER_REPO));
+        let mut url = release_page.clone();
+        if let Some(assets) = rel["assets"].as_array() {
+            let names: Vec<&str> = assets.iter().filter_map(|a| a["name"].as_str()).collect();
+            if let Some(i) = pick_update_asset(&names, exts, archs, mac_fallback) {
+                if let Some(link) = assets[i]["browser_download_url"].as_str() {
+                    url = link.to_string();
+                }
             }
         }
-    }
-    Ok(Some(UpdateInfo {
-        has_update: true,
-        current: current.to_string(),
-        latest: tag.trim_start_matches('v').to_string(),
-        url,
-    }))
+        Ok(Some(UpdateInfo {
+            has_update: true,
+            current: current.to_string(),
+            latest: tag.trim_start_matches('v').to_string(),
+            url,
+        }))
+    })
+    .await
+    .map_err(|e| format!("JOIN {}", e))?
 }
 
 // ============ 开机自启（不引插件：LaunchAgent / 注册表 Run / XDG autostart） ============
 
 #[tauri::command]
-fn autostart_state() -> bool {
-    autostart_enabled()
+async fn autostart_state() -> bool {
+    // Windows 走 reg 子进程查询；统一丢后台线程避免卡主线程
+    tauri::async_runtime::spawn_blocking(autostart_enabled)
+        .await
+        .unwrap_or(false)
 }
 
 /// 写入/移除登录自启项；仅改文件，下次登录生效（不 load，避免运行中双实例）
 #[tauri::command]
-fn set_autostart_cmd(enable: bool) -> Result<(), String> {
-    set_autostart(enable)
+async fn set_autostart_cmd(enable: bool) -> Result<(), String> {
+    // Windows 走 reg 子进程写入；统一丢后台线程避免卡主线程
+    tauri::async_runtime::spawn_blocking(move || set_autostart(enable))
+        .await
+        .map_err(|e| format!("JOIN {}", e))?
 }
 
 #[cfg(target_os = "macos")]
