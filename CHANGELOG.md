@@ -6,6 +6,15 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.2.1-beta.1] - 2026-11-04 🔥 替换 1.2.0-beta.1
+
+### Fixed
+- **DMG 挂载即弹「已损坏，移到废纸篓」**：macOS 15 起 Gatekeeper 在挂载 quarantined DMG 时就评估包内 App，CI 现造自签证书（untrusted 链）签名的 App 直接被判「已损坏」且无右键 override（v1.1.0-beta.1 起潜伏，1.2.0-beta.1 首次被下载暴露）——发布产物改回无签名（`tauri build --no-sign`），恢复 v1.0.x 行为：挂载干净、首次启动右键 → 打开即可；本地 dev 构建保留 GlintLocal 签名，钥匙串免弹收益不变
+- **DMG 安装窗口没有背景图**：bundler 的 DMG 视觉（背景 + 图标坐标）靠 AppleScript 驱动 Finder，CI 无头环境静默失败——背景图其实已复制进卷内 `.background/`，但缺 `.DS_Store` 视图设置。改用 dmgbuild 纯 Python 写视图设置（`dmg-settings.py`，与 conf 的 dmg 块参数一致），无头可靠且已本地目视验收
+
+### Changed
+- CI mac 构建只产 App 包（`--bundles app`），DMG 由 dmgbuild 打包（产物名不变 `Glint_<ver>_universal.dmg`，顺带不再有 DMG 签名）
+
 ## [1.2.0-beta.1] - 2026-11-04
 
 ### Added
