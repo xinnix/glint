@@ -2,6 +2,8 @@ name: Release
 
 # 打 tag（v*）触发：三平台矩阵构建（macOS 通用二进制 DMG / Linux deb+AppImage /
 # Windows MSI+NSIS），全部追加到同一 Draft Release，人工核对资产后发布。
+# 注意：softprops 三 job 并发上传同一 Draft 时会把 Draft 直接转正（2026-11-04 实证），
+# 即「push tag 即发布」；标题/说明靠事后 gh release edit 补。
 # Apple Developer ID 签名与公证待账号就绪后启用（mac job 注释块）。
 
 on:
@@ -20,7 +22,12 @@ jobs:
         include:
           - os: macos-latest
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            tauri_args: --target universal-apple-darwin
+            # --bundles app：DMG 不交给 bundler（见下方 dmgbuild 步骤）；
+            # --no-sign：不签名。无真 Developer ID 前的一切签名方案都会坏事——
+            # 自签/untrusted 证书签出的 App 在 macOS 15+ 挂载 quarantined DMG 时
+            # 被 Gatekeeper 判「已损坏，移到废纸篓」（v1.1.0-beta.1/v1.2.0-beta.1 实证）；
+            # 无签名则回到宽松路径：挂载干净、启动时右键打开即可（v1.0.x 行为）
+            tauri_args: --target universal-apple-darwin --bundles app --no-sign
             files: tauri/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           - os: ubuntu-22.04
             files: |
@@ -51,35 +58,10 @@ jobs:
         with:
           node-version: 22
 
-      # CI 上没有 tauri.conf.json 指定的 GlintLocal 签名身份，bundler 的 codesign 会失败。
-      # 方案：现造一枚自签证书，经 tauri-bundler 原生的 APPLE_CERTIFICATE 机制签名——
-      # bundler 检测到该环境变量后会自建临时钥匙串（create/unlock/keychain-settings/
-      # partition-list 一应俱全）并用显式 --keychain 路径签名，完全绕开搜索链与交互授权。
-      # 勿用手搓 security 命令替代：codesign 首次用私钥若触发任何交互授权/解锁弹窗，
-      # headless runner 上无人应答即永久挂起（实测挂 40 分钟）。
-      # 自签证书两个硬性要点（源码级确认 + 本地实测）：
-      # ① CN 必须带 Apple 前缀且带 OU——bundler 只认 "Developer ID Application:" 等前缀
-      #   身份且要求 OU 字段（identity::list 按 find-certificate -c 前缀过滤 + Team 解析）；
-      # ② codeSigning EKU 缺失时 codesign 根本不把它当签名身份（"no identity found"）；
-      # ③ p12 用旧式加密参数（-macalg sha1 + PBE-SHA1-3DES），新式 AES+SHA2 MAC 会被
-      #   macOS security import 拒（MAC verification failed）。
-      # 自签证书未入信任链，对用户侧 Gatekeeper 行为与 ad-hoc 等价（首启右键打开），
-      # 但产物带稳定 CFBundleIdentifier，优于裸 ad-hoc 的随机 glint-<hex> id。
-      # 将来拿到真 Developer ID 证书后：仅需把 secrets 里同名 APPLE_CERTIFICATE(_PASSWORD)
-      # 覆盖本步骤的 GITHUB_ENV 输出即可，下游零改动。
-      - name: Create ephemeral signing certificate (GlintLocal)
-        if: runner.os == 'macOS'
-        run: |
-          openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes \
-            -subj "/CN=Developer ID Application: GlintLocal/OU=GlintCI" \
-            -addext "keyUsage=critical,digitalSignature" \
-            -addext "extendedKeyUsage=codeSigning" \
-            -addext "basicConstraints=critical,CA:FALSE"
-          openssl pkcs12 -export -inkey key.pem -in cert.pem -out GlintLocal.p12 -password pass:glint-ci -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES
-          {
-            echo "APPLE_CERTIFICATE=$(base64 -i GlintLocal.p12 | tr -d '\n')"
-            echo "APPLE_CERTIFICATE_PASSWORD=glint-ci"
-          } >> "$GITHUB_ENV"
+      # （原「现造自签证书签名」步骤已删：untrusted 证书签出的 App 在 macOS 15+
+      # 挂载 quarantined DMG 时被判「已损坏」，见上方 tauri_args 注释。真
+      # Developer ID + 公证就绪后再启用签名：设 APPLE_CERTIFICATE(_PASSWORD) 环境变量，
+      # 并去掉 tauri_args 里的 --no-sign，同时复验挂载行为。）
 
       - name: Build
         working-directory: tauri
@@ -90,6 +72,25 @@ jobs:
         run: |
           npm ci
           npx tauri build ${{ matrix.tauri_args }}
+
+      # DMG 视觉打包：纯 Python 写 .DS_Store（背景图 + 图标坐标），无头可靠。
+      # bundler 的 DMG 视觉靠 osascript 驱动 Finder，无头 runner 上静默失败——
+      # 背景图进了 .background/ 但视图设置缺失，表现为「背景图不显示」。
+      # 视觉参数在 tauri/src-tauri/dmg-settings.py（与 tauri.conf.json 的 dmg 块保持一致）
+      - name: Package DMG with background (dmgbuild)
+        if: runner.os == 'macOS'
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' tauri/src-tauri/Cargo.toml)
+          APP="tauri/src-tauri/target/universal-apple-darwin/release/bundle/macos/Glint.app"
+          DMG_DIR="tauri/src-tauri/target/universal-apple-darwin/release/bundle/dmg"
+          mkdir -p "$DMG_DIR"
+          python3 -m venv "$RUNNER_TEMP/dmgvenv"
+          "$RUNNER_TEMP/dmgvenv/bin/pip" install dmgbuild
+          "$RUNNER_TEMP/dmgvenv/bin/dmgbuild" \
+            -s tauri/src-tauri/dmg-settings.py \
+            -Dapp="$PWD/$APP" \
+            -Dbackground="$PWD/tauri/src-tauri/dmg-background.png" \
+            "Glint" "$DMG_DIR/Glint_${VERSION}_universal.dmg"
 
       # 公证就绪后取消注释（需 APPLE_ID / APPLE_PASSWORD[app-specific] / APPLE_TEAM_ID secrets）
       # - name: Notarize
