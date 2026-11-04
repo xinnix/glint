@@ -4,16 +4,17 @@
 #
 # 视觉参数与 tauri.conf.json 的 bundle.macOS.dmg 保持一致（后者服务本地 bundler 构建）。
 # dmgbuild 坐标系以窗口内容**左下角**为原点；conf 的 *Position 是左上角原点：
-#   y_bottom = window_height(400) - y_top = 400 - 170 = 230
+#   y_bottom = window_height(560) - y_top = 560 - 170 = 390
 # 路径由 release.yml 以 -D 注入：-Dapp=<Glint.app 路径> -Dbackground=<背景图路径>
+# 背景图内容见 scripts/dmg-background.html（渲染步骤在该文件头注释）。
 
 files = [defines["app"]]
 background = defines["background"]
-window_rect = ((150, 200), (810, 600))
+window_rect = ((150, 200), (810, 760))
 icon_size = 90
 icon_locations = {
-    "Glint.app": (180, 230),
-    "Applications": (480, 230),
+    "Glint.app": (180, 390),
+    "Applications": (480, 390),
 }
 symlinks = { "Applications": "/Applications" }
 format = "UDZO"

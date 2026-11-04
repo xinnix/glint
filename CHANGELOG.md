@@ -6,6 +6,12 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.2.2-beta.1] - 2026-11-04
+
+### Changed
+- **DMG 安装窗口背景重做**：复刻官网「安装到 macOS」指引视觉——上半区拖拽箭头（Glint → Applications），下半区三步放行卡（① 点「完成」② 打开系统设置选「隐私与安全性」③ 点「仍要打开」，绿色高亮圈标注点击位置）；窗口 660×560，背景带 Retina @2x 版本（高分屏文字清晰）
+- 背景画板源文件 `scripts/dmg-background.html`（浏览器 1320×1120 视口截图 → `dmg-background@2x.png`，`sips` 缩半得 @1x，可复现）
+
 ## [1.2.1-beta.1] - 2026-11-04 🔥 替换 1.2.0-beta.1
 
 ### Fixed
