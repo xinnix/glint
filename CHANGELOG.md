@@ -6,6 +6,17 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.2.3-beta.1] - 2026-11-04
+
+### Fixed
+- **DMG 窗口几何修正**（背景指引版的实测回调）：
+  - 图标压在三步卡上：dmgbuild 实测 `icon_locations` 的 y 是**左上原点**（README 所写「左下原点」不符），直接用与背景图一致的左上坐标
+  - 窗口开成 810×760、背景贴左上：`window_rect` 第二元组实为**宽高**（dmgbuild core 直接写 Finder WindowBounds `{{x,y},{w,h}}`），并非文档所述 `(right, top)`
+  - 底部说明文字被状态栏遮住：macOS Finder 对 DMG 卷强制加标签栏+状态栏（DS_Store 的 Show* 开关无效）——窗口加高至 660×712，正文只占顶部 620，底部 ~92px 纯背景色安全区
+
+### Changed
+- DMG 窗口 660×712；Glint / Applications 图标精确对齐拖拽箭头两端（y=180）
+
 ## [1.2.2-beta.1] - 2026-11-04
 
 ### Changed

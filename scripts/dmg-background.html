@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<!-- DMG 安装窗口背景图画板（660×560 逻辑尺寸）。
+<!-- DMG 安装窗口背景图画板（660×712 逻辑尺寸；底部 ~92px 纯背景色安全区——Finder 会强制加标签栏/状态栏吃掉窗口高度，正文内容须避开）。
      视觉复刻 site/index.html 的 macOS 首启指引 section（固定浅色截图风）。
      布局与 DMG 真实元素对齐（见 dmg-settings.py / tauri.conf.json）：
-     - Glint.app 与 Applications 图标由 Finder 画在 (180,170)/(480,170)（左上原点，icon_size 90），
+     - Glint.app 与 Applications 图标由 Finder 画在 (180,180)/(480,180)（左上原点，icon_size 90），
        本画板只画两点之间的绿色虚线箭头；
      - 下半区为三步放行指引卡（①完成 ②隐私与安全性 ③仍要打开）。
      渲染产出（手工步骤，改完跑一次）：
-       1. 浏览器打开本文件，视口 1320×1120（body 有 zoom:2），整页截图存
+       1. 浏览器打开本文件，视口 1320×1424（body 有 zoom:2），整页截图存
           tauri/src-tauri/dmg-background@2x.png
-       2. `sips -z 560 660 dmg-background@2x.png --out tauri/src-tauri/dmg-background.png`
+       2. `sips -z 712 660 dmg-background@2x.png --out tauri/src-tauri/dmg-background.png`
      dmgbuild 发现同名 @2x 文件会自动用于 Retina。 -->
 <html lang="zh-CN">
 <head>
@@ -21,30 +21,30 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     zoom: 2; /* Retina：1320×1120 实际像素（只放 body 一层，html 再叠会 4×） */
-    width: 660px; height: 560px; overflow: hidden;
+    width: 660px; height: 712px; overflow: hidden;
     background: var(--bg);
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     position: relative;
   }
-  .title { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
-  .subtitle { position: absolute; top: 58px; width: 100%; text-align: center; font-size: 13px; color: var(--text-2); }
+  .title { position: absolute; top: 24px; width: 100%; text-align: center; font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+  .subtitle { position: absolute; top: 64px; width: 100%; text-align: center; font-size: 13px; color: var(--text-2); }
 
   /* 拖拽带：真实图标在 (180,170)/(480,170)，这里只画中间箭头 */
   .dots {
-    position: absolute; left: 248px; top: 166px; width: 150px; height: 8px;
+    position: absolute; left: 248px; top: 176px; width: 150px; height: 8px;
     background-image: radial-gradient(circle, var(--green) 3px, transparent 3.6px);
     background-size: 19px 8px; background-repeat: repeat-x; background-position: 0 center;
   }
-  .chev { position: absolute; left: 402px; top: 156px; color: var(--green); }
+  .chev { position: absolute; left: 402px; top: 166px; color: var(--green); }
 
-  .blocked-h { position: absolute; top: 252px; width: 100%; text-align: center; font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
-  .blocked-sub { position: absolute; top: 277px; width: 100%; text-align: center; font-size: 11.5px; color: var(--text-2); }
+  .blocked-h { position: absolute; top: 274px; width: 100%; text-align: center; font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .blocked-sub { position: absolute; top: 299px; width: 100%; text-align: center; font-size: 11.5px; color: var(--text-2); }
 
-  .cards { position: absolute; left: 18px; top: 304px; display: flex; gap: 12px; }
+  .cards { position: absolute; left: 18px; top: 326px; display: flex; gap: 12px; }
   .card {
-    width: 200px; height: 236px; background: #fff; border: 1px solid var(--border);
+    width: 200px; height: 244px; background: #fff; border: 1px solid var(--border);
     border-radius: 14px; padding: 9px 9px 8px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
     display: flex; flex-direction: column;
