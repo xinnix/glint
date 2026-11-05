@@ -1218,11 +1218,20 @@ fn status_color(status: &str) -> (u8, u8, u8) {
     }
 }
 
-/// 程序生成的托盘图标：镂空方形框 + git 分支 + 状态角标（RGBA），恒定白色线条 +
-/// 半透明深色外沿（浅色菜单栏下的对比度兜底），无需外部资源、不依赖系统外观探测
-fn tray_image(r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
-    let buf = tray_icon::render_tray_rgba(r, g, b, 32);
+/// 程序生成的托盘图标：实心色块 + 镂空 git 分支 + 状态角标（RGBA）。
+/// 色块颜色跟随菜单栏深浅（深色栏白色、浅色栏深灰），无需外部资源。
+fn tray_image(app: &AppHandle, r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
+    let buf = tray_icon::render_tray_rgba(r, g, b, 32, menu_bar_is_dark(app));
     tauri::image::Image::new_owned(buf, 32, 32)
+}
+
+/// 菜单栏深浅跟随系统外观：用隐藏面板窗口的 theme()（effectiveAppearance）探测。
+/// 探测失败（个别 Linux 桌面环境）按深色菜单栏处理，维持白色块旧行为。
+fn menu_bar_is_dark(app: &AppHandle) -> bool {
+    app.get_webview_window("panel")
+        .and_then(|w| w.theme().ok())
+        .map(|t| t == tauri::Theme::Dark)
+        .unwrap_or(true)
 }
 
 /// 面板定位到托盘图标下方居中（macOS 版）。
@@ -1378,7 +1387,7 @@ fn update_tray(app: &AppHandle, states: &[RepoState]) {
     };
     let (agg, failed) = aggregate_status(states);
     let (r, g, b) = status_color(agg);
-    let _ = tray.set_icon(Some(tray_image(r, g, b)));
+    let _ = tray.set_icon(Some(tray_image(app, r, g, b)));
     if let Ok(menu) = build_menu(app, states, failed) {
         let _ = tray.set_menu(Some(menu));
     }
@@ -2080,6 +2089,15 @@ fn main() {
                 if let tauri::WindowEvent::Focused(false) = event {
                     let _ = window.hide();
                 }
+                // 系统深浅色切换：菜单栏外观跟着变，托盘色块颜色即时重绘
+                if let tauri::WindowEvent::ThemeChanged(_) = event {
+                    let app = window.app_handle();
+                    let states = app
+                        .try_state::<Shared>()
+                        .map(|sh| sh.snapshot.lock().unwrap().clone())
+                        .unwrap_or_default();
+                    update_tray(app, &states);
+                }
             }
         })
         .setup(|app| {
@@ -2101,9 +2119,20 @@ fn main() {
                 device_flow_cancel: Mutex::new(None),
             });
 
+            // 先建隐藏面板窗口：托盘色块颜色要用它的 theme()（effectiveAppearance）探测系统深浅
+            WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
+                .title("Glint")
+                .inner_size(390.0, 560.0)
+                .decorations(false)
+                .resizable(false)
+                .visible(false)
+                .skip_taskbar(true)
+                .always_on_top(true)
+                .build()?;
+
             let menu = build_menu(app.handle(), &[], 0)?;
             TrayIconBuilder::with_id("main")
-                .icon(tray_image(142, 142, 147))
+                .icon(tray_image(app.handle(), 142, 142, 147))
                 .tooltip("Glint")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -2130,16 +2159,6 @@ fn main() {
                     }
                 })
                 .build(app)?;
-
-            WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
-                .title("Glint")
-                .inner_size(390.0, 560.0)
-                .decorations(false)
-                .resizable(false)
-                .visible(false)
-                .skip_taskbar(true)
-                .always_on_top(true)
-                .build()?;
 
             let handle = app.handle().clone();
             std::thread::spawn(move || poller(handle, rx));
