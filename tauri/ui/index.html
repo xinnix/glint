@@ -13,9 +13,20 @@
         <button id="onboard-lang-btn" class="ghost-btn" title="切换语言 / Language">EN</button>
       </div>
       <div class="onboarding">
-        <div class="onboard-dot"></div>
+        <span class="onboard-mark">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect width="24" height="24" rx="6" fill="#2d2d33"/>
+            <g transform="translate(3 3) scale(0.75)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="3" x2="6" y2="15"/>
+              <circle cx="18" cy="6" r="3"/>
+              <circle cx="6" cy="18" r="3"/>
+              <path d="M18 9a9 9 0 0 1-9 9"/>
+            </g>
+            <circle cx="18.6" cy="18.6" r="3.9" fill="#1db954" stroke="#ffffff" stroke-width="1.5"/>
+          </svg>
+        </span>
         <h3 data-i18n="onboardTitle">通过 GitHub 登录，开始监控</h3>
-        <p class="muted small" data-i18n="onboardDesc">登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。</p>
+        <p class="muted" data-i18n="onboardDesc">登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。</p>
         <div class="row center">
           <button id="device-login-btn" data-i18n="deviceLogin">通过 GitHub 登录</button>
           <button id="device-cancel-btn" class="secondary hidden" data-i18n="cancel">取消</button>
@@ -31,78 +42,105 @@
     <!-- 面板视图 -->
     <div id="panel-view" class="view">
       <header>
+        <div class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <rect width="24" height="24" rx="6" fill="#2d2d33"/>
+              <g transform="translate(3 3) scale(0.75)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="3" x2="6" y2="15"/>
+                <circle cx="18" cy="6" r="3"/>
+                <circle cx="6" cy="18" r="3"/>
+                <path d="M18 9a9 9 0 0 1-9 9"/>
+              </g>
+              <circle cx="18.6" cy="18.6" r="3.9" fill="#1db954" stroke="#ffffff" stroke-width="1.5"/>
+            </svg>
+          </span>
+          <b class="title">Glint</b>
+        </div>
         <span id="overall-pill" class="pill gray"><i class="dot"></i><span id="overall-text">—</span></span>
-        <b class="title">Glint</b>
         <span class="spacer"></span>
         <span id="spinner" class="spinner hidden"></span>
         <span id="last-refresh" class="muted small"></span>
         <button id="lang-btn" class="ghost-btn" title="切换语言 / Language">EN</button>
       </header>
       <div id="update-banner" class="update-banner hidden">
+        <span class="banner-icon" data-icon="arrow-up-circle"></span>
         <span id="update-text"></span>
         <button id="update-btn" class="ghost-btn"></button>
       </div>
       <div id="rate-banner" class="update-banner hidden">
+        <span class="banner-icon" data-icon="alert-triangle"></span>
         <span id="rate-text"></span>
         <button id="rate-btn" class="ghost-btn hidden"></button>
       </div>
       <main id="repo-list"></main>
       <footer>
-        <button id="manage-btn" class="ghost-btn">⚙ <span data-i18n="manage">管理</span></button>
-        <button id="refresh-btn" class="ghost-btn">⟳ <span data-i18n="refresh">刷新</span></button>
+        <button id="manage-btn" class="ghost-btn"><span data-icon="settings"></span><span data-i18n="manage">管理</span></button>
+        <button id="refresh-btn" class="ghost-btn"><span data-icon="refresh-cw"></span><span data-i18n="refresh">刷新</span></button>
         <span class="spacer"></span>
         <span id="token-info" class="muted small"></span>
-        <button id="quit-btn" class="ghost-btn">⏻ <span data-i18n="quit">退出</span></button>
+        <button id="quit-btn" class="ghost-btn danger"><span data-icon="power"></span><span data-i18n="quit">退出</span></button>
       </footer>
     </div>
 
     <!-- 管理视图 -->
     <div id="manage-view" class="view hidden">
-      <header>
-        <button id="back-btn" class="ghost-btn">‹ <span data-i18n="back">返回</span></button>
+      <header class="manage-header">
+        <button id="back-btn" class="ghost-btn"><span data-icon="chevron-left"></span><span data-i18n="back">返回</span></button>
         <b class="title" data-i18n="manageTitle">仓库管理</b>
       </header>
       <main class="manage-body">
         <section>
-          <h3 data-i18n="reposSection">监控仓库</h3>
-          <div id="repo-manage-list"></div>
-          <!-- 从 GitHub 选择仓库：折叠面板，勾选完自动收起，不常驻占位 -->
-          <details id="repo-picker" class="repo-picker">
-            <summary>
-              <span class="chevron">▶</span>
-              <span data-i18n="pickFromGithub">从 GitHub 选择仓库</span>
-            </summary>
+          <div class="section-label" data-i18n="reposSection">监控仓库</div>
+          <div class="group-card">
+            <div id="repo-manage-list"></div>
+          </div>
+        </section>
+
+        <!-- 从 GitHub 选择仓库：独立区块 -->
+        <section>
+          <div class="section-label" data-i18n="pickFromGithub">从 GitHub 选择仓库</div>
+          <div class="group-card">
             <div class="picker-body">
               <div class="row">
-                <button id="fetch-repos-btn" class="secondary" data-i18n="fetchRepos">⟳ 拉取我的仓库</button>
+                <button id="fetch-repos-btn" class="secondary"><span data-icon="refresh-cw"></span><span data-i18n="fetchRepos">拉取我的仓库</span></button>
                 <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
               </div>
               <div id="repo-check-list" class="repo-check-list hidden"></div>
               <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
             </div>
-          </details>
+          </div>
         </section>
 
         <section>
-          <h3 data-i18n="refreshNotify">刷新与通知</h3>
-          <div class="row">
-            <label for="interval-select" data-i18n="interval">刷新间隔</label>
-            <select id="interval-select">
-              <option value="15">15s</option>
-              <option value="30">30s</option>
-              <option value="60">1min</option>
-              <option value="120">2min</option>
-              <option value="300">5min</option>
-            </select>
-          </div>
-          <div class="row">
-            <label><input type="checkbox" id="notify-failure" /> <span data-i18n="notifyFailure">失败时发系统通知</span></label>
-          </div>
-          <div class="row">
-            <label><input type="checkbox" id="notify-success" /> <span data-i18n="notifySuccess">运行中转为通过时发通知</span></label>
-          </div>
-          <div class="row">
-            <label><input type="checkbox" id="autostart" /> <span data-i18n="autostart">开机自启（登录时自动启动）</span></label>
+          <div class="section-label" data-i18n="refreshNotify">刷新与通知</div>
+          <div class="group-card">
+            <div class="group-row">
+              <span class="row-text" data-i18n="interval">刷新间隔</span>
+              <span class="spacer"></span>
+              <select id="interval-select">
+                <option value="15">15s</option>
+                <option value="30">30s</option>
+                <option value="60">1min</option>
+                <option value="120">2min</option>
+                <option value="300">5min</option>
+              </select>
+            </div>
+            <label class="group-row switch-row">
+              <span class="row-text" data-i18n="notifyFailure">失败时发系统通知</span>
+              <span class="spacer"></span>
+              <span class="switch"><input type="checkbox" id="notify-failure" /><span class="slider"></span></span>
+            </label>
+            <label class="group-row switch-row">
+              <span class="row-text" data-i18n="notifySuccess">运行中转为通过时发通知</span>
+              <span class="spacer"></span>
+              <span class="switch"><input type="checkbox" id="notify-success" /><span class="slider"></span></span>
+            </label>
+            <label class="group-row switch-row">
+              <span class="row-text" data-i18n="autostart">开机自启（登录时自动启动）</span>
+              <span class="spacer"></span>
+              <span class="switch"><input type="checkbox" id="autostart" /><span class="slider"></span></span>
+            </label>
           </div>
         </section>
 
@@ -112,12 +150,15 @@
         </div>
 
         <section>
-          <h3 data-i18n="aboutSection">关于</h3>
-          <div class="row">
-            <span id="about-version" class="muted small"></span>
-            <button id="check-update-btn" class="ghost-btn" data-i18n="checkUpdate">检查更新</button>
+          <div class="section-label" data-i18n="aboutSection">关于</div>
+          <div class="group-card">
+            <div class="group-row">
+              <span class="row-text muted" id="about-version"></span>
+              <span class="spacer"></span>
+              <button id="check-update-btn" class="ghost-btn" data-i18n="checkUpdate">检查更新</button>
+            </div>
+            <div id="about-status" class="group-row hidden"></div>
           </div>
-          <div id="about-status" class="muted small hidden"></div>
         </section>
 
         <div id="manage-message" class="message hidden"></div>

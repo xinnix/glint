@@ -19,12 +19,12 @@ const I18N = {
     error: '错误', loading: '加载中…', failedSuffix: '失败', failedN: '{n} 项失败',
     manage: '管理', refresh: '刷新', quit: '退出', back: '返回',
     loadingRepos: '正在加载仓库状态…', emptyRepos: '还没有监控的仓库', addRepo: '添加仓库',
-    failedDetail: '失败详情 · {n} 项', viewLog: '查看日志 ↗', more: '还有 {n} 项…',
-    copy: '复制', copied: '已复制 ✓', copyFailed: '复制失败',
+    failedDetail: '失败详情 · {n} 项', viewLog: '查看日志', more: '还有 {n} 项…',
+    copy: '复制', copied: '已复制', copyFailed: '复制失败',
     copyError: '复制错误', copiedSummary: '已复制摘要', logUnavailable: '（日志拉取失败，仅摘要）',
-    checks: '检查 {n} 项', stars: '★ {n}',
+    checks: '检查 {n} 项', stars: '{n}',
     allPass: '全部检查通过',
-    tokenPresent: 'Token ✓（通过 GitHub 登录）',
+    tokenPresent: '已登录 GitHub',
     tokenMissing: '未登录：仅公共仓库，限流 60 次/时',
     onboardTitle: '通过 GitHub 登录，开始监控',
     onboardDesc: '登录后勾选要监控的仓库（含私有仓库），享受更高限流。Token 只存本机钥匙串，无服务器、无遥测。',
@@ -32,7 +32,7 @@ const I18N = {
     relogin: '重新登录',
     manageTitle: '仓库管理', reposSection: '监控仓库',
     pickFromGithub: '从 GitHub 选择仓库',
-    fetchRepos: '⟳ 拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…', listLoading: '正在拉取仓库列表…',
+    fetchRepos: '拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…', listLoading: '正在拉取仓库列表…',
     checkHint: '勾选即加入监控，取消勾选即移除；可随时重新拉取。',
     noMatch: '没有匹配的仓库', emptyFetched: '未拉取到仓库', fetchFailed: '拉取失败：{msg}',
     refreshNotify: '刷新与通知', interval: '刷新间隔',
@@ -40,8 +40,8 @@ const I18N = {
     autostart: '开机自启（登录时自动启动）',
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
-    updateAvailable: '⬆ 新版本 v{v} 可用', updateDownload: '下载',
-    aboutSection: '关于', checkUpdate: '检查更新', upToDate: '已是最新版本 ✓',
+    updateAvailable: '新版本 v{v} 可用', updateDownload: '下载',
+    aboutSection: '关于', checkUpdate: '检查更新', upToDate: '已是最新版本',
     newAvailShort: '新版本 v{v} 可用', checkUpdateFailed: '检查失败：{msg}',
     rateLimitHint: 'GitHub API 限流中，登录后限额提升至 5000 次/时',
     rateLimitHintAuthed: 'GitHub API 限流中，稍后自动恢复',
@@ -72,12 +72,12 @@ const I18N = {
     error: 'Error', loading: 'Loading…', failedSuffix: 'failed', failedN: '{n} failed',
     manage: 'Manage', refresh: 'Refresh', quit: 'Quit', back: 'Back',
     loadingRepos: 'Loading repository status…', emptyRepos: 'No repositories yet', addRepo: 'Add Repository',
-    failedDetail: 'Failures · {n}', viewLog: 'View log ↗', more: '{n} more…',
-    copy: 'Copy', copied: 'Copied ✓', copyFailed: 'Copy failed',
+    failedDetail: 'Failures · {n}', viewLog: 'View log', more: '{n} more…',
+    copy: 'Copy', copied: 'Copied', copyFailed: 'Copy failed',
     copyError: 'Copy error', copiedSummary: 'Copied summary', logUnavailable: '(log unavailable, summary only)',
-    checks: '{n} checks', stars: '★ {n}',
+    checks: '{n} checks', stars: '{n}',
     allPass: 'All checks passed',
-    tokenPresent: 'Token ✓ (signed in with GitHub)',
+    tokenPresent: 'Signed in with GitHub',
     tokenMissing: 'Not signed in: public repos only, 60 req/h',
     onboardTitle: 'Sign in with GitHub to start monitoring',
     onboardDesc: 'Pick repositories to watch (private ones included) with higher rate limits. The token stays in your system keychain — no server, no telemetry.',
@@ -85,7 +85,7 @@ const I18N = {
     relogin: 'Sign in again',
     manageTitle: 'Manage Repositories', reposSection: 'Repositories',
     pickFromGithub: 'Select repos from GitHub',
-    fetchRepos: '⟳ Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…', listLoading: 'Loading repository list…',
+    fetchRepos: 'Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…', listLoading: 'Loading repository list…',
     checkHint: 'Check to monitor, uncheck to remove; re-fetch anytime.',
     noMatch: 'No matching repos', emptyFetched: 'No repos found', fetchFailed: 'Fetch failed: {msg}',
     refreshNotify: 'Refresh & Notifications', interval: 'Interval',
@@ -93,8 +93,8 @@ const I18N = {
     autostart: 'Launch at login',
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
-    updateAvailable: '⬆ New version v{v} available', updateDownload: 'Download',
-    aboutSection: 'About', checkUpdate: 'Check for updates', upToDate: 'Up to date ✓',
+    updateAvailable: 'New version v{v} available', updateDownload: 'Download',
+    aboutSection: 'About', checkUpdate: 'Check for updates', upToDate: 'Up to date',
     newAvailShort: 'New version v{v} available', checkUpdateFailed: 'Check failed: {msg}',
     rateLimitHint: 'GitHub API rate limited — sign in for 5,000 req/h',
     rateLimitHintAuthed: 'GitHub API rate limited, will recover shortly',
@@ -231,6 +231,40 @@ function el(tag, className, text) {
   return node;
 }
 
+// ============ SVG 图标（Lucide 风格：24 viewBox / stroke 2 / currentColor） ============
+
+const ICON_PATHS = {
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'arrow-up-circle': '<circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/>',
+  'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h8"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  slash: '<circle cx="12" cy="12" r="10"/><line x1="9" y1="15" x2="15" y2="9"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  'git-pr': '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+  'circle-dot': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+  play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+};
+
+function icon(name, size = 12) {
+  const paths = ICON_PATHS[name] || '';
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
+// 静态 HTML 里的 data-icon 占位在启动时注入一次
+function injectStaticIcons() {
+  document.querySelectorAll('[data-icon]').forEach((node) => {
+    node.innerHTML = icon(node.dataset.icon);
+  });
+}
+
 // ============ 剪贴板 ============
 
 // 优先 Tauri 剪贴板插件（跨平台可靠），失败时退回浏览器 API，最后 execCommand 兜底
@@ -296,10 +330,10 @@ function compactStatusText(s) {
 }
 
 function renderRepoCard(container, s) {
-  const card = el('div', 'repo-card');
+  const item = el('div', 'repo-item');
   const row = el('div', 'repo-row');
 
-  const dot = el('i', 'dot');
+  const dot = el('i', `dot${s.status === 'running' ? ' pulse' : ''}`);
   dot.style.background = STATUS_COLOR[s.status] || 'var(--gray)';
   row.appendChild(dot);
 
@@ -313,7 +347,8 @@ function renderRepoCard(container, s) {
   row.appendChild(el('span', 'time', relativeTime(s.rows?.[0]?.date || s.pushed_at)));
 
   const isExpanded = expanded.has(s.repo);
-  const chevron = el('span', `chevron${isExpanded ? ' open' : ''}`, '▶');
+  const chevron = el('span', `chevron${isExpanded ? ' open' : ''}`);
+  chevron.innerHTML = icon('chevron-right', 14);
   row.appendChild(chevron);
 
   row.addEventListener('click', () => {
@@ -321,12 +356,12 @@ function renderRepoCard(container, s) {
     else expanded.add(s.repo);
     render();
   });
-  card.appendChild(row);
+  item.appendChild(row);
 
   if (isExpanded) {
-    card.appendChild(detailSection(s));
+    item.appendChild(detailSection(s));
   }
-  container.appendChild(card);
+  container.appendChild(item);
 }
 
 function detailSection(s) {
@@ -339,25 +374,29 @@ function detailSection(s) {
 
   // 提交信息
   if (s.commit_subject || s.head_sha) {
-    const line = el('div', 'muted-line');
-    if (s.commit_subject) {
-      const subject = el('span', '', s.commit_subject);
-      subject.style.whiteSpace = 'nowrap';
-      subject.style.overflow = 'hidden';
-      subject.style.textOverflow = 'ellipsis';
-      line.appendChild(subject);
-    }
-    if (s.head_sha) line.appendChild(el('span', 'sha', s.head_sha.slice(0, 7)));
+    const line = el('div', 'commit-line');
+    if (s.commit_subject) line.appendChild(el('span', 'subject', s.commit_subject));
+    if (s.head_sha) line.appendChild(el('span', 'sha-chip', s.head_sha.slice(0, 7)));
     detail.appendChild(line);
   }
 
   // 检查统计
   if (s.total_checks > 0) {
     const stats = el('div', 'stats');
-    stats.appendChild(el('span', '', t('checks', { n: s.total_checks })));
-    if (s.failed_count > 0) stats.appendChild(el('span', 'bad', `✗ ${s.failed_count}`));
-    stats.appendChild(el('span', 'good', `✓ ${s.passed_checks}`));
-    if (s.skipped_checks > 0) stats.appendChild(el('span', '', `⊘ ${s.skipped_checks}`));
+    stats.appendChild(el('span', 'stat-chip', t('checks', { n: s.total_checks })));
+    if (s.failed_count > 0) {
+      const bad = el('span', 'stat-chip bad');
+      bad.innerHTML = `${icon('x', 10)}<span>${s.failed_count}</span>`;
+      stats.appendChild(bad);
+    }
+    const good = el('span', 'stat-chip good');
+    good.innerHTML = `${icon('check', 10)}<span>${s.passed_checks}</span>`;
+    stats.appendChild(good);
+    if (s.skipped_checks > 0) {
+      const skip = el('span', 'stat-chip skip');
+      skip.innerHTML = `${icon('slash', 10)}<span>${s.skipped_checks}</span>`;
+      stats.appendChild(skip);
+    }
     detail.appendChild(stats);
   }
 
@@ -370,9 +409,12 @@ function detailSection(s) {
     if (entries.length) {
       const box = el('div', 'fail-box');
       const head = el('div', 'fail-head');
-      head.appendChild(el('span', '', `⚠ ${t('failedDetail', { n: s.failed_count })}`));
+      const headLabel = el('span', '', t('failedDetail', { n: s.failed_count }));
+      head.innerHTML = icon('alert-triangle', 12);
+      head.appendChild(headLabel);
       if (s.top_fail_url) {
-        const log = el('a', '', t('viewLog'));
+        const log = el('a', '');
+        log.innerHTML = `${t('viewLog')} ${icon('external-link', 11)}`;
         log.addEventListener('click', (e) => { e.stopPropagation(); invoke('open_url', { url: s.top_fail_url }); });
         head.appendChild(log);
       }
@@ -405,9 +447,11 @@ function detailSection(s) {
       box.appendChild(head);
       for (const entry of entries.slice(0, 6)) {
         const item = el('div', 'fail-item');
-        item.appendChild(el('span', 'x', '✕'));
-        item.appendChild(el('span', '', entry.name));
-        if (entry.step) item.appendChild(el('span', 'step', `▸ ${entry.step}`));
+        const x = el('span', 'x');
+        x.innerHTML = icon('x', 11);
+        item.appendChild(x);
+        item.appendChild(el('span', 'name', entry.name));
+        if (entry.step) item.appendChild(el('span', 'step', `› ${entry.step}`));
         item.appendChild(el('span', 'spacer', ''));
         const dur = el('span', 'dur', durationText(entry.start, entry.end));
         item.appendChild(dur);
@@ -435,18 +479,66 @@ function detailSection(s) {
     detail.appendChild(list);
   }
 
+  // 开放 issues（后端按最近活跃排序，取前 8 条）
+  if (Array.isArray(s.issues) && s.issues.length) {
+    const box = el('div', 'issue-list');
+    const head = el('div', 'issue-head');
+    head.innerHTML = icon('circle-dot', 12);
+    head.appendChild(el('span', '', t('issuesSection', { n: s.open_issues })));
+    const all = el('a', '');
+    all.innerHTML = `${t('viewAllIssues')} ${icon('external-link', 11)}`;
+    all.addEventListener('click', (e) => { e.stopPropagation(); invoke('open_url', { url: `https://github.com/${s.repo}/issues` }); });
+    head.appendChild(all);
+    box.appendChild(head);
+    for (const it of s.issues.slice(0, 8)) {
+      const item = el('div', 'issue-item');
+      const top = el('div', 'issue-title');
+      top.appendChild(el('span', 'issue-num', `#${it.number}`));
+      top.appendChild(el('span', 'issue-name', it.title));
+      item.appendChild(top);
+      const meta = el('div', 'issue-meta');
+      for (const l of (it.labels || []).slice(0, 3)) {
+        if (!l.name) continue;
+        const tag = el('span', 'label-pill', l.name);
+        if (l.color) {
+          tag.style.background = `#${l.color}33`;
+          tag.style.color = `#${l.color}`;
+        }
+        meta.appendChild(tag);
+      }
+      if (it.comments > 0) {
+        const c = el('span', 'issue-comments');
+        c.innerHTML = `${icon('message-square', 10)}<span>${it.comments}</span>`;
+        meta.appendChild(c);
+      }
+      meta.appendChild(el('span', 'issue-time', relativeTime(it.updated_at || it.created_at)));
+      item.appendChild(meta);
+      item.addEventListener('click', () => { if (it.url) invoke('open_url', { url: it.url }); });
+      box.appendChild(item);
+    }
+    if (s.issues.length > 8) box.appendChild(el('div', 'muted small', t('more', { n: s.issues.length - 8 })));
+    detail.appendChild(box);
+  } else if (Array.isArray(s.issues) && s.open_issues === 0) {
+    const none = el('div', 'issue-none');
+    none.innerHTML = `${icon('check', 11)}<span>${t('noOpenIssues')}</span>`;
+    detail.appendChild(none);
+  }
+
   // 链接
   if (s.open_prs >= 0) {
     const links = el('div', 'links');
-    const mkLink = (text, url) => {
-      const a = el('a', '', text);
+    const mkLink = (ic, text, url) => {
+      const a = el('a', 'link-chip');
+      a.innerHTML = `${icon(ic, 11)}<span>${text}</span>`;
       a.addEventListener('click', () => invoke('open_url', { url }));
       return a;
     };
-    links.appendChild(mkLink(`PR ${s.open_prs}`, `https://github.com/${s.repo}/pulls`));
-    links.appendChild(mkLink(`Issues ${s.open_issues}`, `https://github.com/${s.repo}/issues`));
-    links.appendChild(mkLink('Actions ↗', `https://github.com/${s.repo}/actions`));
-    links.appendChild(el('span', 'stars', t('stars', { n: s.stars })));
+    links.appendChild(mkLink('git-pr', `PR ${s.open_prs}`, `https://github.com/${s.repo}/pulls`));
+    links.appendChild(mkLink('circle-dot', `Issues ${s.open_issues}`, `https://github.com/${s.repo}/issues`));
+    links.appendChild(mkLink('play', 'Actions', `https://github.com/${s.repo}/actions`));
+    const stars = el('span', 'stars');
+    stars.innerHTML = `${icon('star', 11)}<span>${s.stars}</span>`;
+    links.appendChild(stars);
     detail.appendChild(links);
   }
 
@@ -459,6 +551,9 @@ function renderPanel() {
 
   if (!snapshot.repos.length) {
     const empty = el('div', 'empty-state');
+    const emptyIcon = el('div', 'empty-icon');
+    emptyIcon.innerHTML = icon('git-branch', 36);
+    empty.appendChild(emptyIcon);
     if (snapshot.refreshing) {
       empty.appendChild(el('div', 'spinner'));
       empty.appendChild(el('div', '', t('loadingRepos')));
@@ -470,7 +565,9 @@ function renderPanel() {
     }
     list.appendChild(empty);
   } else {
-    for (const s of snapshot.repos) renderRepoCard(list, s);
+    const group = el('div', 'repo-group');
+    for (const s of snapshot.repos) renderRepoCard(group, s);
+    list.appendChild(group);
   }
 
   // 头部
@@ -496,8 +593,9 @@ function renderManageRepos(config) {
   }
   for (const repo of config.repos) {
     const item = el('div', 'repo-manage-item');
-    item.appendChild(el('span', '', repo));
-    const rm = el('button', 'remove', '✕');
+    item.appendChild(el('span', 'name', repo));
+    const rm = el('button', 'remove');
+    rm.innerHTML = icon('x', 12);
     rm.addEventListener('click', async () => {
       config.repos = config.repos.filter((r) => r !== repo);
       await invoke('save_config', { config });
@@ -650,23 +748,15 @@ let fetchedRepos = []; // 最近一次拉取的可监控仓库
 let repoFilter = '';
 let fetchingRepos = false;
 
-// 「从 GitHub 选择仓库」折叠面板：展开时若还没拉取过则自动拉取；
-// 勾选后短暂延时自动收起（连续勾选会重置计时），不再常驻占用页面
-let collapseTimer = 0;
-
-function schedulePickerCollapse() {
-  const picker = document.getElementById('repo-picker');
-  if (!picker.open) return;
-  clearTimeout(collapseTimer);
-  collapseTimer = setTimeout(() => { picker.open = false; }, 1500);
-}
-
 async function fetchUserRepos() {
   const btn = document.getElementById('fetch-repos-btn');
   if (fetchingRepos) return;
   btn.disabled = true;
-  const oldText = btn.textContent;
-  btn.textContent = t('fetching');
+  // 按钮内含图标 + 文字两个 span，只能改文字那个，不能动 textContent（会抹掉图标）
+  const label = btn.querySelector('span[data-i18n]') || btn;
+  const oldText = label.textContent;
+  label.textContent = t('fetching');
+  btn.classList.add('busy');
   fetchingRepos = true;
   renderCheckList(); // 立即出现加载态，不等网络返回
   try {
@@ -677,7 +767,8 @@ async function fetchUserRepos() {
   } finally {
     fetchingRepos = false;
     btn.disabled = false;
-    btn.textContent = oldText;
+    btn.classList.remove('busy');
+    label.textContent = oldText;
     renderCheckList();
   }
 }
@@ -721,11 +812,14 @@ function renderCheckList() {
       }
       await invoke('save_config', { config: currentConfig });
       renderManageRepos(currentConfig);
-      schedulePickerCollapse();
     });
     item.appendChild(cb);
-    item.appendChild(el('span', '', r.full_name));
-    if (r.private) item.appendChild(el('span', 'lock', '🔒'));
+    item.appendChild(el('span', 'name', r.full_name));
+    if (r.private) {
+      const lock = el('span', 'lock');
+      lock.innerHTML = icon('lock', 11);
+      item.appendChild(lock);
+    }
     if (r.description) item.appendChild(el('span', 'desc', r.description));
     item.addEventListener('click', (ev) => {
       if (ev.target !== cb) {
@@ -760,13 +854,6 @@ function bindEvents() {
   document.getElementById('repo-filter-input').addEventListener('input', (e) => {
     repoFilter = e.target.value;
     renderCheckList();
-  });
-
-  // 折叠面板：手动开合时清掉自动收起计时；首次展开自动拉取仓库列表
-  const picker = document.getElementById('repo-picker');
-  picker.addEventListener('toggle', () => {
-    clearTimeout(collapseTimer);
-    if (picker.open && !fetchedRepos.length) fetchUserRepos();
   });
 
   document.getElementById('interval-select').addEventListener('change', persistConfig);
@@ -908,6 +995,7 @@ async function init() {
 
     snapshot = await invoke('get_snapshot');
     report(`init snapshot: ${snapshot.repos.length} repos, refreshing=${snapshot.refreshing}`);
+    injectStaticIcons();
     bindEvents();
     render();
     renderTokenInfo();
