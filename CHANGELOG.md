@@ -4,7 +4,16 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 ## [Unreleased]
 
-（暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
+（下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
+
+## [1.3.0-beta.1] - 2026-11-05
+
+### Added
+- **仓库卡片内嵌开放 Issues 列表**：展开仓库卡片即可直接查看最近活跃的前 8 个开放 issue（bug / 反馈 / 建议），含真实颜色 label 徽章、评论数、活跃时间；点击跳转对应 issue，区块头「查看全部」打开仓库 issues 页。数据复用现有 issues API 响应（此前仅统计数量），零额外请求、零额外限流消耗；无开放 issue 时显示「暂无开放 issue」确认态
+- **面板视觉刷新**：Lucide 风格 SVG 图标体系（页脚 / 链接芯片 / 状态徽章 / 空态全部图标化，currentColor 深浅色自适应）；header 与登录引导嵌入品牌 logo mark（圆角色块 + git-branch 镂空 + 状态彩点）；设计令牌重构（表面分层、color-mix 徽章底色、iOS 风格开关、分组卡片、状态/时间列对齐）；中英文案去除装饰符号
+
+### Fixed
+- **dev 模式偶发崩溃**：裸二进制（`tauri dev` / `cargo run`）直启时 UNUserNotificationCenter 可能抛 NSException（bundleProxyForCurrentProcess is nil）直接崩掉整个进程，且是否触发取决于启动时序——bundle 外跳过通知初始化与发送，打包版不受影响
 
 ## [1.2.4-beta.1] - 2026-11-05
 
