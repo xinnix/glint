@@ -1219,19 +1219,42 @@ fn status_color(status: &str) -> (u8, u8, u8) {
 }
 
 /// 程序生成的托盘图标：实心色块 + 镂空 git 分支 + 状态角标（RGBA）。
-/// 色块颜色跟随菜单栏深浅（深色栏白色、浅色栏深灰），无需外部资源。
+/// 色块颜色随菜单栏实际样式（macOS 26+ 恒白；旧版按主题深浅切换），无需外部资源。
 fn tray_image(app: &AppHandle, r: u8, g: u8, b: u8) -> tauri::image::Image<'static> {
     let buf = tray_icon::render_tray_rgba(r, g, b, 32, menu_bar_is_dark(app));
     tauri::image::Image::new_owned(buf, 32, 32)
 }
 
-/// 菜单栏深浅跟随系统外观：用隐藏面板窗口的 theme()（effectiveAppearance）探测。
-/// 探测失败（个别 Linux 桌面环境）按深色菜单栏处理，维持白色块旧行为。
+/// 菜单栏深浅判定：
+/// - macOS 26+（Liquid Glass）：菜单栏不随系统深浅色翻转，系统图标恒白，
+///   我们也恒白——跟 theme() 走反而会在浅色模式里变成一排白图标中的深色异类；
+/// - 旧版 macOS：菜单栏跟随主题，用隐藏面板窗口的 theme()（effectiveAppearance）探测；
+/// - 探测失败（个别 Linux 桌面环境）按深色菜单栏处理，维持白色块。
 fn menu_bar_is_dark(app: &AppHandle) -> bool {
+    #[cfg(target_os = "macos")]
+    if macos_major() >= 26 {
+        return true;
+    }
     app.get_webview_window("panel")
         .and_then(|w| w.theme().ok())
         .map(|t| t == tauri::Theme::Dark)
         .unwrap_or(true)
+}
+
+/// macOS 产品版本主版本号（kern.osproductversion，如 27.1.0 → 27）；读取失败返回 0。
+/// 只调用一次 sysctl 并缓存。
+#[cfg(target_os = "macos")]
+fn macos_major() -> u32 {
+    static MAJOR: OnceLock<u32> = OnceLock::new();
+    *MAJOR.get_or_init(|| {
+        std::process::Command::new("sysctl")
+            .args(["-n", "kern.osproductversion"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|s| s.trim().split('.').next()?.parse().ok())
+            .unwrap_or(0)
+    })
 }
 
 /// 面板定位到托盘图标下方居中（macOS 版）。
