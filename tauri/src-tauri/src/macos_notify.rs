@@ -79,7 +79,24 @@ impl GlintNotifDelegate {
 }
 
 /// 启动时调用（主线程）：装 delegate + 请求通知授权（已授权时幂等）
+/// 是否运行在 .app bundle 内。裸二进制（tauri dev / cargo run，target/debug/ 直启）下
+/// UNUserNotificationCenter 会抛 NSException（bundleProxyForCurrentProcess is nil）直接崩掉
+/// 整个进程，且是否触发取决于启动时序（Apple Event check-in 路径，偶发）——
+/// dev 模式跳过通知初始化；打包后的正式版路径在 Glint.app/Contents/MacOS/ 下不受影响。
+fn in_app_bundle() -> bool {
+    std::env::current_exe()
+        .map(|p| {
+            p.ancestors()
+                .any(|a| a.extension().is_some_and(|e| e.eq_ignore_ascii_case("app")))
+        })
+        .unwrap_or(false)
+}
+
 pub fn init(app: AppHandle) {
+    if !in_app_bundle() {
+        eprintln!("[notify] skip init: not running inside an .app bundle (dev mode)");
+        return;
+    }
     let _ = PANEL_APP.set(Mutex::new(Some(app)));
     let center = UNUserNotificationCenter::currentNotificationCenter();
 
@@ -119,6 +136,10 @@ pub fn init(app: AppHandle) {
 
 /// 发一条本地通知（任意线程；内部切主线程）。`id` 用仓库名，便于未来按仓库定向交互。
 pub fn notify(app: &AppHandle, title: &str, body: &str, id: &str) {
+    if !in_app_bundle() {
+        eprintln!("[notify] skip notify: not running inside an .app bundle (dev mode)");
+        return;
+    }
     let title = title.to_string();
     let body = body.to_string();
     let id = id.to_string();
