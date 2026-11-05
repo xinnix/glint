@@ -53,6 +53,23 @@ struct FailedJob {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+struct IssueLabel {
+    name: String,
+    color: String, // GitHub 返回的 6 位 hex（如 "d73a4a"）
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct IssueBrief {
+    number: i64,
+    title: String,
+    labels: Vec<IssueLabel>,
+    url: Option<String>, // html_url
+    created_at: Option<String>,
+    updated_at: Option<String>,
+    comments: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 struct RepoState {
     repo: String,
     status: String, // loading / running / success / failed / no_checks / error
@@ -63,6 +80,7 @@ struct RepoState {
     rows: Vec<RunRow>,
     open_prs: i64, // -1 = 未知（未拉取）
     open_issues: i64,
+    issues: Vec<IssueBrief>,
     stars: i64,
     pushed_at: Option<String>,
     failed_count: i64,
@@ -150,7 +168,6 @@ mod config_tests {
         assert!(c.notify_on_success);
         assert!(c.repos.is_empty());
     }
-
     // 「复制错误」摘录：错误行向上带 15 行上下文（根因常在错误前执行的输出里）、
     // 向下带 5 行，剥离时间戳与 ##[error] 标记；无标记时回退日志末尾
     #[test]
@@ -186,6 +203,75 @@ mod config_tests {
         let ex = extract_error_excerpt(log, 30, 12);
         assert!(ex.chars().count() <= 13); // 内容 + 可能的省略号
         assert!(ex.starts_with("aaaaaaaaaa"));
+    }
+}
+
+#[cfg(test)]
+mod issue_briefs_tests {
+    use super::*;
+
+    // /issues 端点会混入 PR（带 pull_request 键），必须过滤；计数与列表同源
+    #[test]
+    fn filters_out_pull_requests_and_counts_real_issues() {
+        let raw = r#"[
+            {"number":1,"title":"real bug","pull_request":{"url":"x"}},
+            {"number":2,"title":"real issue","html_url":"https://github.com/o/r/issues/2"}
+        ]"#;
+        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let (total, briefs) = parse_issue_briefs(&v);
+        assert_eq!(total, 1);
+        assert_eq!(briefs.len(), 1);
+        assert_eq!(briefs[0].number, 2);
+        assert_eq!(briefs[0].title, "real issue");
+    }
+
+    // 面板展示按最近活跃（updated_at）降序；总数不截断、列表截前 8
+    #[test]
+    fn sorts_by_updated_at_and_caps_at_8() {
+        let mut raw = String::from("[");
+        for n in 1..=10 {
+            // number=1 的 updated_at 最新（2026-01-10），number=10 最旧（2026-01-01）
+            raw.push_str(&format!(
+                r#"{{"number":{},"title":"t{}","updated_at":"2026-01-{:02}T00:00:00Z"}},"#,
+                11 - n,
+                11 - n,
+                n
+            ));
+        }
+        raw.pop(); // 去尾逗号
+        raw.push(']');
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let (total, briefs) = parse_issue_briefs(&v);
+        assert_eq!(total, 10);
+        assert_eq!(briefs.len(), 8);
+        // 降序后首位是最近活跃的 number=1，第 8 位是 number=8
+        assert_eq!(briefs[0].number, 1);
+        assert_eq!(briefs[7].number, 8);
+    }
+
+    // label 保留 name + color（前端按真实色渲染徽章）
+    #[test]
+    fn extracts_label_names_and_colors() {
+        let raw = r#"[{"number":7,"title":"x","labels":[{"name":"bug","color":"d73a4a"},{"id":9},{"name":"P1","color":"ffabcd"}]}]"#;
+        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let (_, briefs) = parse_issue_briefs(&v);
+        assert_eq!(briefs[0].labels.len(), 3);
+        assert_eq!(briefs[0].labels[0].name, "bug");
+        assert_eq!(briefs[0].labels[0].color, "d73a4a");
+        // 缺 name/color 的 label 回退为空串，不 panic
+        assert_eq!(briefs[0].labels[1].name, "");
+        assert_eq!(briefs[0].labels[2].color, "ffabcd");
+    }
+
+    // 非数组响应 / 空数组：总数 0、列表空
+    #[test]
+    fn handles_empty_and_non_array_responses() {
+        let (total, briefs) = parse_issue_briefs(&serde_json::json!({"message": "moved"}));
+        assert_eq!(total, 0);
+        assert!(briefs.is_empty());
+        let (total, briefs) = parse_issue_briefs(&serde_json::json!([]));
+        assert_eq!(total, 0);
+        assert!(briefs.is_empty());
     }
 }
 
@@ -1042,6 +1128,46 @@ fn fetch_repo(repo: &str, token: Option<&str>, light: bool) -> RepoState {
     st
 }
 
+// 从 /issues 响应提取面板用的 issue 摘要：过滤混入的 PR，按最近活跃排序，取前 8 条。
+// 返回 (开放 issue 总数, 前 8 条摘要)。
+fn parse_issue_briefs(v: &serde_json::Value) -> (i64, Vec<IssueBrief>) {
+    let mut items: Vec<&serde_json::Value> = v
+        .as_array()
+        .map(|a| a.iter().filter(|i| i["pull_request"].is_null()).collect())
+        .unwrap_or_default();
+    let total = items.len() as i64;
+    // RFC3339 同格式字符串可直接字典序比较
+    items.sort_by(|a, b| {
+        let ka = a["updated_at"].as_str().unwrap_or("");
+        let kb = b["updated_at"].as_str().unwrap_or("");
+        kb.cmp(ka)
+    });
+    let briefs = items
+        .iter()
+        .take(8)
+        .map(|i| IssueBrief {
+            number: i["number"].as_i64().unwrap_or(0),
+            title: i["title"].as_str().unwrap_or("").to_string(),
+            labels: i["labels"]
+                .as_array()
+                .map(|ls| {
+                    ls.iter()
+                        .map(|l| IssueLabel {
+                            name: l["name"].as_str().unwrap_or("").to_string(),
+                            color: l["color"].as_str().unwrap_or("").to_string(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            url: i["html_url"].as_str().map(String::from),
+            created_at: i["created_at"].as_str().map(String::from),
+            updated_at: i["updated_at"].as_str().map(String::from),
+            comments: i["comments"].as_i64().unwrap_or(0),
+        })
+        .collect();
+    (total, briefs)
+}
+
 fn fetch_repo_inner(repo: &str, token: Option<&str>, light: bool, st: &mut RepoState) -> Result<(), String> {
     let meta = get_json(&gh_url(&format!("/repos/{}", repo), &[]), token)?.0;
     let branch = meta["default_branch"].as_str().unwrap_or("main").to_string();
@@ -1197,10 +1323,9 @@ fn fetch_repo_inner(repo: &str, token: Option<&str>, light: bool, st: &mut RepoS
             &gh_url(&format!("/repos/{}/issues", repo), &[("state", "open"), ("per_page", "100")]),
             token,
         ) {
-            st.open_issues = iv
-                .as_array()
-                .map(|a| a.iter().filter(|i| i["pull_request"].is_null()).count() as i64)
-                .unwrap_or(0);
+            let (total, briefs) = parse_issue_briefs(&iv);
+            st.open_issues = total;
+            st.issues = briefs;
         }
     }
     Ok(())
@@ -2145,7 +2270,7 @@ fn main() {
             // 先建隐藏面板窗口：托盘色块颜色要用它的 theme()（effectiveAppearance）探测系统深浅
             WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
                 .title("Glint")
-                .inner_size(390.0, 560.0)
+                .inner_size(400.0, 600.0)
                 .decorations(false)
                 .resizable(false)
                 .visible(false)

@@ -23,6 +23,7 @@ const I18N = {
     copy: '复制', copied: '已复制', copyFailed: '复制失败',
     copyError: '复制错误', copiedSummary: '已复制摘要', logUnavailable: '（日志拉取失败，仅摘要）',
     checks: '检查 {n} 项', stars: '{n}',
+    issuesSection: 'Issues · {n} 个开放', viewAllIssues: '查看全部', noOpenIssues: '暂无开放 issue',
     allPass: '全部检查通过',
     tokenPresent: '已登录 GitHub',
     tokenMissing: '未登录：仅公共仓库，限流 60 次/时',
@@ -76,6 +77,7 @@ const I18N = {
     copy: 'Copy', copied: 'Copied', copyFailed: 'Copy failed',
     copyError: 'Copy error', copiedSummary: 'Copied summary', logUnavailable: '(log unavailable, summary only)',
     checks: '{n} checks', stars: '{n}',
+    issuesSection: '{n} open issues', viewAllIssues: 'View all', noOpenIssues: 'No open issues',
     allPass: 'All checks passed',
     tokenPresent: 'Signed in with GitHub',
     tokenMissing: 'Not signed in: public repos only, 60 req/h',
@@ -251,6 +253,7 @@ const ICON_PATHS = {
   'git-pr': '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
   'circle-dot': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
   play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+  'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
 
 function icon(name, size = 12) {
@@ -477,6 +480,51 @@ function detailSection(s) {
       list.appendChild(item);
     }
     detail.appendChild(list);
+  }
+
+  // 开放 issues（后端按最近活跃排序，取前 8 条）
+  if (Array.isArray(s.issues) && s.issues.length) {
+    const box = el('div', 'issue-list');
+    const head = el('div', 'issue-head');
+    head.innerHTML = icon('circle-dot', 12);
+    head.appendChild(el('span', '', t('issuesSection', { n: s.open_issues })));
+    const all = el('a', '');
+    all.innerHTML = `${t('viewAllIssues')} ${icon('external-link', 11)}`;
+    all.addEventListener('click', (e) => { e.stopPropagation(); invoke('open_url', { url: `https://github.com/${s.repo}/issues` }); });
+    head.appendChild(all);
+    box.appendChild(head);
+    for (const it of s.issues.slice(0, 8)) {
+      const item = el('div', 'issue-item');
+      const top = el('div', 'issue-title');
+      top.appendChild(el('span', 'issue-num', `#${it.number}`));
+      top.appendChild(el('span', 'issue-name', it.title));
+      item.appendChild(top);
+      const meta = el('div', 'issue-meta');
+      for (const l of (it.labels || []).slice(0, 3)) {
+        if (!l.name) continue;
+        const tag = el('span', 'label-pill', l.name);
+        if (l.color) {
+          tag.style.background = `#${l.color}33`;
+          tag.style.color = `#${l.color}`;
+        }
+        meta.appendChild(tag);
+      }
+      if (it.comments > 0) {
+        const c = el('span', 'issue-comments');
+        c.innerHTML = `${icon('message-square', 10)}<span>${it.comments}</span>`;
+        meta.appendChild(c);
+      }
+      meta.appendChild(el('span', 'issue-time', relativeTime(it.updated_at || it.created_at)));
+      item.appendChild(meta);
+      item.addEventListener('click', () => { if (it.url) invoke('open_url', { url: it.url }); });
+      box.appendChild(item);
+    }
+    if (s.issues.length > 8) box.appendChild(el('div', 'muted small', t('more', { n: s.issues.length - 8 })));
+    detail.appendChild(box);
+  } else if (Array.isArray(s.issues) && s.open_issues === 0) {
+    const none = el('div', 'issue-none');
+    none.innerHTML = `${icon('check', 11)}<span>${t('noOpenIssues')}</span>`;
+    detail.appendChild(none);
   }
 
   // 开放 issues（后端按最近活跃排序，取前 8 条）
