@@ -6,6 +6,14 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （暂无——下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.2.4-beta.1] - 2026-11-05
+
+### Fixed
+- **托盘图标重做：实心色块 + 镂空 git-branch，无描边**（[#1](https://github.com/xinnix/glint/issues/1)：原恒定白色描边在浅色菜单栏下难以辨认）
+  - macOS 26+（Liquid Glass 玻璃菜单栏，不随深浅色翻转、系统图标恒白）：色块恒定白色，与系统图标风格一致
+  - 旧版 macOS：色块随菜单栏深浅自动切换（深色栏白色、浅色栏深灰），系统切换外观时即时重绘
+  - 状态彩点保留：绿/红/橙/紫/灰五态一眼可辨；彩点以透明间隙环与色块分离
+
 ## [1.2.3-beta.1] - 2026-11-04
 
 ### Fixed
