@@ -6,6 +6,11 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 （下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
+## [1.3.1-beta.1] - 2026-11-06
+
+### Fixed
+- **展开仓库卡片时 Issues 区块渲染两遍**：v1.3.0-beta.1 发布工程拆分提交时，前端 Issues 区块被误加了两份（UI 重构提交误带一份、功能提交又插入一份）——每张卡片展开后出现两个相同的「Issues · n 个开放」列表。删除重复区块，功能行为不变
+
 ## [1.3.0-beta.1] - 2026-11-05
 
 ### Added
