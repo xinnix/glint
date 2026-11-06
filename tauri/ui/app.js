@@ -24,7 +24,6 @@ const I18N = {
     copyError: '复制错误', copiedSummary: '已复制摘要', logUnavailable: '（日志拉取失败，仅摘要）',
     checks: '检查 {n} 项', stars: '{n}',
     issuesSection: 'Issues · {n} 个开放', viewAllIssues: '查看全部', noOpenIssues: '暂无开放 issue',
-    issueStateOpen: '开放', issueStateClosed: '已关闭', issueComments: '{n} 条评论', issueNoBody: '（无正文）',
     allPass: '全部检查通过',
     tokenPresent: '已登录 GitHub',
     tokenMissing: '未登录：仅公共仓库，限流 60 次/时',
@@ -79,7 +78,6 @@ const I18N = {
     copyError: 'Copy error', copiedSummary: 'Copied summary', logUnavailable: '(log unavailable, summary only)',
     checks: '{n} checks', stars: '{n}',
     issuesSection: '{n} open issues', viewAllIssues: 'View all', noOpenIssues: 'No open issues',
-    issueStateOpen: 'Open', issueStateClosed: 'Closed', issueComments: '{n} comments', issueNoBody: '(no body)',
     allPass: 'All checks passed',
     tokenPresent: 'Signed in with GitHub',
     tokenMissing: 'Not signed in: public repos only, 60 req/h',
@@ -522,7 +520,7 @@ function detailSection(s) {
       }
       meta.appendChild(el('span', 'issue-time', relativeTime(it.updated_at || it.created_at)));
       item.appendChild(meta);
-      item.addEventListener('click', () => openIssuePanel(s.repo, it.number));
+      item.addEventListener('click', () => { if (it.url) invoke('open_url', { url: it.url }); });
       box.appendChild(item);
     }
     if (s.issues.length > 8) box.appendChild(el('div', 'muted small', t('more', { n: s.issues.length - 8 })));
@@ -536,75 +534,6 @@ function detailSection(s) {
   // PR/Issues/Actions 链接行已上移到折叠行的第二行（.repo-sub），详情区不再重复展示
 
   return detail;
-}
-
-// ============ Issue 详情面板（点击 issue 行新开展示，不跳浏览器） ============
-
-let currentIssue = null; // { repo, number }，防止慢网返回时已切走仍渲染
-
-async function openIssuePanel(repo, number) {
-  currentIssue = { repo, number };
-  switchView('issue');
-  document.getElementById('issue-view-title').textContent = `${repo} #${number}`;
-  const main = document.getElementById('issue-detail-main');
-  main.innerHTML = '';
-  main.appendChild(el('div', 'spinner'));
-  try {
-    const d = await invoke('fetch_issue', { repo, number });
-    if (!currentIssue || currentIssue.repo !== repo || currentIssue.number !== number) return;
-    renderIssueDetail(main, d);
-  } catch (err) {
-    report(`fetch_issue failed: ${err}`);
-    if (!currentIssue || currentIssue.repo !== repo || currentIssue.number !== number) return;
-    main.innerHTML = '';
-    main.appendChild(el('div', 'error-text', localizedError(String(err))));
-  }
-}
-
-function renderIssueDetail(main, d) {
-  main.innerHTML = '';
-
-  // 标题 + 状态
-  const head = el('div', 'issue-detail-head');
-  const statePill = el('span', `pill ${d.state === 'open' ? 'green' : 'gray'}`);
-  const sd = el('i', 'dot');
-  sd.style.background = d.state === 'open' ? 'var(--green)' : 'var(--gray)';
-  statePill.appendChild(sd);
-  statePill.appendChild(el('span', '', t(d.state === 'open' ? 'issueStateOpen' : 'issueStateClosed')));
-  head.appendChild(statePill);
-  head.appendChild(el('div', 'issue-detail-title', `#${d.number} ${d.title}`));
-  const meta = el('div', 'issue-detail-meta');
-  meta.appendChild(el('span', '', d.user ? `@${d.user}` : ''));
-  if (d.created_at) meta.appendChild(el('span', '', relativeTime(d.created_at)));
-  for (const l of d.labels || []) {
-    if (!l.name) continue;
-    const tag = el('span', 'label-pill', l.name);
-    if (l.color) {
-      tag.style.background = `#${l.color}33`;
-      tag.style.color = `#${l.color}`;
-    }
-    meta.appendChild(tag);
-  }
-  head.appendChild(meta);
-  main.appendChild(head);
-
-  // 正文（原始 markdown 按纯文本预换行渲染，可选中复制）
-  const bodyText = el('div', 'issue-text', d.body || t('issueNoBody'));
-  main.appendChild(bodyText);
-
-  // 评论
-  if ((d.comments || []).length) {
-    main.appendChild(el('div', 'issue-comments-label', t('issueComments', { n: d.comments.length })));
-    for (const c of d.comments) {
-      const cm = el('div', 'issue-comment');
-      const ch = el('div', 'c-head');
-      ch.appendChild(el('span', 'c-user', c.user ? `@${c.user}` : ''));
-      if (c.created_at) ch.appendChild(el('span', '', relativeTime(c.created_at)));
-      cm.appendChild(ch);
-      cm.appendChild(el('div', 'issue-text plain', c.body || ''));
-      main.appendChild(cm);
-    }
-  }
 }
 
 // 面板底部状态图例：行内只保留状态点颜色，语义统一在此标注
@@ -752,7 +681,6 @@ function switchView(view) {
   currentView = view;
   document.getElementById('panel-view').classList.toggle('hidden', view !== 'panel');
   document.getElementById('manage-view').classList.toggle('hidden', view !== 'manage');
-  document.getElementById('issue-view').classList.toggle('hidden', view !== 'issue');
   document.getElementById('onboarding-view').classList.toggle('hidden', view !== 'onboarding');
   if (view === 'manage') loadManage();
 }
@@ -920,7 +848,6 @@ function renderCheckList() {
 function bindEvents() {
   document.getElementById('manage-btn').addEventListener('click', () => switchView('manage'));
   document.getElementById('back-btn').addEventListener('click', () => switchView('panel'));
-  document.getElementById('issue-back-btn').addEventListener('click', () => switchView('panel'));
 
   document.getElementById('refresh-btn').addEventListener('click', () => invoke('refresh_now'));
   document.getElementById('quit-btn').addEventListener('click', () => invoke('quit_app'));
