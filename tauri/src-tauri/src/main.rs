@@ -368,6 +368,25 @@ fn keyring_entry() -> Option<keyring::Entry> {
     keyring::Entry::new("glint", "token").ok()
 }
 
+/// 写入 token；失败时删旧条目再重试一次。
+/// 背景：本地 ad-hoc 签名每次重编译二进制哈希都变，钥匙串条目的 ACL 只信任创建它的
+/// 那个二进制 → 已有条目走「更新」路径必然被拒（用户拒绝/无法弹授权框）。
+/// 删掉旧条目改走「创建」路径（无 ACL 限制），一次允许后即可恢复。
+fn save_token(token: &str) -> Result<(), String> {
+    let entry = keyring_entry().ok_or("keyring unavailable")?;
+    match entry.set_password(token) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            eprintln!("[keychain] set_password FAILED: {err}; retrying after delete");
+            match entry.delete_credential() {
+                Ok(()) => eprintln!("[keychain] old entry deleted"),
+                Err(del) => eprintln!("[keychain] delete old entry failed: {del}"),
+            }
+            entry.set_password(token).map_err(|e| e.to_string())
+        }
+    }
+}
+
 /// 一次性迁移（2026-11-03 产品更名 Glint ← GitCIStatus）：
 /// 配置目录 ~/.config/gitcistatus → ~/.config/glint；
 /// 钥匙串 service gitcistatus → glint（读到旧 token 即复制并删旧条目）；
@@ -782,11 +801,7 @@ async fn device_flow_start(
                 Ok(v) => {
                     if let Some(token) = v["access_token"].as_str() {
                         eprintln!("[device-flow] access_token received, writing keychain");
-                        let entry = keyring_entry();
-                        let saved = match entry {
-                            Some(e) => e.set_password(token).map_err(|err| err.to_string()),
-                            None => Err("keyring unavailable".into()),
-                        };
+                        let saved = save_token(token);
                         if let Err(err) = &saved {
                             // 不能吞掉错误：钥匙串写入失败要能从日志定位
                             eprintln!("[device-flow] keychain write FAILED: {err}");
