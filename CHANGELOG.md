@@ -5,7 +5,10 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 ## [Unreleased]
 
 ### Changed
-- **仓库行两行化，状态纯色化**（用户审核反馈定稿）：PR / Issues / Actions 三个链接芯片上移到折叠仓库行的第二行，不展开即可见、可点击直达（展开后由详情区展示同样的链接行，不重复）；行内移除状态文字与指示点，CI 状态只由行首圆点颜色表达；面板底部新增五色状态图例（通过 / 失败 / 运行中 / 错误 / 无 CI）
+- **仓库行两行化，状态纯色化**（用户审核反馈定稿）：PR / Issues / Actions 三个链接芯片上移到折叠仓库行的第二行，不展开即可见、可点击直达（星数同移至该行右侧）；详情区不再重复展示链接行；行内移除状态文字与指示点，CI 状态只由行首圆点颜色表达；面板底部新增五色状态图例（通过 / 失败 / 运行中 / 错误 / 无 CI）
+
+### Added
+- **应用内 Issue 详情面板**：点击展开区的 issue 行，在应用内新开面板展示 issue 正文、label、评论列表（作者 + 时间），支持选中和复制；不再跳转浏览器。新后端命令 `fetch_issue`（issue + comments 两个 API，阻塞 IO 走 spawn_blocking）。「查看全部」与列表芯片仍跳 GitHub 网页
 
 （下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 

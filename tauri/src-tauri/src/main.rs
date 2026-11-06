@@ -69,6 +69,27 @@ struct IssueBrief {
     comments: i64,
 }
 
+// 面板内 issue 详情视图（点击 issue 行新开面板，不跳浏览器）
+#[derive(Debug, Clone, Serialize, Default)]
+struct IssueCommentBrief {
+    user: String,
+    body: String,
+    created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct IssueDetail {
+    repo: String,
+    number: i64,
+    title: String,
+    state: String, // open / closed
+    user: String,
+    created_at: Option<String>,
+    body: Option<String>, // 原始 markdown，前端按纯文本预换行渲染
+    labels: Vec<IssueLabel>,
+    comments: Vec<IssueCommentBrief>,
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 struct RepoState {
     repo: String,
@@ -668,6 +689,60 @@ async fn fetch_user_repos() -> Result<Vec<RepoBrief>, String> {
     })
     .await
     .map_err(|e| format!("JOIN {}", e))?
+}
+
+// 拉取单个 issue 详情 + 评论（面板内新开 issue 视图用）
+#[tauri::command]
+async fn fetch_issue(repo: String, number: i64) -> Result<IssueDetail, String> {
+    // 阻塞网络 IO 放后台线程，避免卡住主线程
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = resolve_token();
+        let (iv, _) = get_json(
+            &gh_url(&format!("/repos/{}/issues/{}", repo, number), &[]),
+            token.as_deref(),
+        )?;
+        let (cv, _) = get_json(
+            &gh_url(
+                &format!("/repos/{}/issues/{}/comments", repo, number),
+                &[("per_page", "100")],
+            ),
+            token.as_deref(),
+        )?;
+        Ok(IssueDetail {
+            repo,
+            number: iv["number"].as_i64().unwrap_or(number),
+            title: iv["title"].as_str().unwrap_or("").to_string(),
+            state: iv["state"].as_str().unwrap_or("open").to_string(),
+            user: iv["user"]["login"].as_str().unwrap_or("").to_string(),
+            created_at: iv["created_at"].as_str().map(String::from),
+            body: iv["body"].as_str().map(String::from),
+            labels: iv["labels"]
+                .as_array()
+                .map(|ls| {
+                    ls.iter()
+                        .map(|l| IssueLabel {
+                            name: l["name"].as_str().unwrap_or("").to_string(),
+                            color: l["color"].as_str().unwrap_or("").to_string(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            comments: cv
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|c| IssueCommentBrief {
+                            user: c["user"]["login"].as_str().unwrap_or("").to_string(),
+                            body: c["body"].as_str().unwrap_or("").to_string(),
+                            created_at: c["created_at"].as_str().map(String::from),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
 }
 
 /// 拉取失败 job 的日志并提取错误摘录——「失败后不打开网页、直接复制错误」的数据源
@@ -2320,6 +2395,7 @@ fn main() {
             refresh_now,
             token_info_cmd,
             fetch_user_repos,
+            fetch_issue,
             fetch_job_log_excerpt,
             import_local_dir,
             open_url,
