@@ -322,45 +322,17 @@ function failureSummaryText(s, entry) {
   return lines.join('\n');
 }
 
-function compactStatusText(s) {
-  if (s.status === 'failed') {
-    if (s.failed_count === 1 && s.failed_checks && s.failed_checks[0]) {
-      return `${s.failed_checks[0].name} ${t('failedSuffix')}`;
-    }
-    return t('failedN', { n: s.failed_count });
-  }
-  return t(`statusText.${s.status}`) || s.status;
-}
-
 function renderRepoCard(container, s) {
   const item = el('div', 'repo-item');
   const row = el('div', 'repo-row');
 
+  // 行首状态点：CI 状态只靠颜色表达（语义见面板底部图例）
   const dot = el('i', `dot${s.status === 'running' ? ' pulse' : ''}`);
   dot.style.background = STATUS_COLOR[s.status] || 'var(--gray)';
   row.appendChild(dot);
 
   row.appendChild(el('span', 'name', s.repo));
   row.appendChild(el('span', 'spacer', ''));
-
-  // PR / Issues 存在指示点：仅非 0 时展示，颜色区分类型，悬停见确切数量
-  const badges = el('span', 'row-badges');
-  if (s.open_prs > 0) {
-    const b = el('span', 'row-dot pr');
-    b.title = `PR ${s.open_prs}`;
-    badges.appendChild(b);
-  }
-  if (s.open_issues > 0) {
-    const b = el('span', 'row-dot issue');
-    b.title = `Issues ${s.open_issues}`;
-    badges.appendChild(b);
-  }
-  if (badges.children.length) row.appendChild(badges);
-
-  const statusEl = el('span', 'status-text', compactStatusText(s));
-  statusEl.style.color = STATUS_COLOR[s.status] || 'var(--text-2)';
-  row.appendChild(statusEl);
-
   row.appendChild(el('span', 'time', relativeTime(s.rows?.[0]?.date || s.pushed_at)));
 
   const isExpanded = expanded.has(s.repo);
@@ -374,6 +346,21 @@ function renderRepoCard(container, s) {
     render();
   });
   item.appendChild(row);
+
+  // PR / Issues / Actions 芯片：不展开即见；展开后详情区已有同样的链接行，不再重复
+  if (!isExpanded && s.open_prs >= 0) {
+    const sub = el('div', 'repo-sub');
+    const mkChip = (ic, text, url) => {
+      const a = el('a', 'link-chip');
+      a.innerHTML = `${icon(ic, 11)}<span>${text}</span>`;
+      a.addEventListener('click', (e) => { e.stopPropagation(); invoke('open_url', { url }); });
+      return a;
+    };
+    sub.appendChild(mkChip('git-pr', `PR ${s.open_prs}`, `https://github.com/${s.repo}/pulls`));
+    sub.appendChild(mkChip('circle-dot', `Issues ${s.open_issues}`, `https://github.com/${s.repo}/issues`));
+    sub.appendChild(mkChip('play', 'Actions', `https://github.com/${s.repo}/actions`));
+    item.appendChild(sub);
+  }
 
   if (isExpanded) {
     item.appendChild(detailSection(s));
@@ -562,6 +549,27 @@ function detailSection(s) {
   return detail;
 }
 
+// 面板底部状态图例：行内只保留状态点颜色，语义统一在此标注
+function renderLegend() {
+  const legend = document.getElementById('status-legend');
+  legend.innerHTML = '';
+  const items = [
+    ['success', 'var(--green)'],
+    ['failed', 'var(--red)'],
+    ['running', 'var(--orange)'],
+    ['error', 'var(--purple)'],
+    ['no_checks', 'var(--gray)'],
+  ];
+  for (const [key, color] of items) {
+    const lg = el('span', 'lg');
+    const d = el('i', 'dot');
+    d.style.background = color;
+    lg.appendChild(d);
+    lg.appendChild(el('span', '', t(`statusText.${key}`)));
+    legend.appendChild(lg);
+  }
+}
+
 function renderPanel() {
   const list = document.getElementById('repo-list');
   list.innerHTML = '';
@@ -600,6 +608,7 @@ function renderPanel() {
     snapshot.last_refresh_ms ? new Date(snapshot.last_refresh_ms).toISOString() : null
   );
   document.getElementById('refresh-btn').disabled = snapshot.refreshing;
+  renderLegend();
 }
 
 function renderManageRepos(config) {

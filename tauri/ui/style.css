@@ -178,12 +178,7 @@ main#repo-list, main.manage-body {
   font-weight: 600; font-size: 13px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* 右侧三列定宽对齐：状态列 / 时间列 / chevron，行间形成整齐的列 */
-.repo-row .status-text {
-  font-size: 12px; font-weight: 500; white-space: nowrap;
-  flex: 0 1 auto; min-width: 68px; max-width: 42%;
-  text-align: right; overflow: hidden; text-overflow: ellipsis;
-}
+/* 右侧两列定宽对齐：时间列 / chevron，行间形成整齐的列（状态只用行首圆点颜色表达） */
 .repo-row .time {
   font-size: 11px; color: var(--text-3); white-space: nowrap;
   flex: 0 0 auto; width: 68px; text-align: right; overflow: hidden;
@@ -196,11 +191,22 @@ main#repo-list, main.manage-body {
 .repo-row .chevron svg { width: 14px; height: 14px; }
 .repo-row .chevron.open { transform: rotate(90deg); }
 
-/* 行内 PR/Issues 指示点（仅非 0 显示，两行竖排，颜色区分：紫=PR，橙=Issues） */
-.row-badges { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
-.row-dot { width: 7px; height: 7px; border-radius: 50%; }
-.row-dot.pr { background: var(--purple); }
-.row-dot.issue { background: var(--orange); }
+/* 第二行：PR / Issues / Actions 芯片，不展开即见；左缘与行首文字对齐（12 + 点9 + 间距10） */
+.repo-sub {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px 9px 31px;
+}
+
+/* 面板底部状态图例：行内只保留状态点颜色，语义统一在此标注 */
+.status-legend {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-3);
+  flex-shrink: 0;
+}
+.status-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
+.status-legend .lg .dot { width: 7px; height: 7px; }
 
 /* 展开详情 */
 .detail {

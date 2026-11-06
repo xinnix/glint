@@ -4,6 +4,9 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed
+- **仓库行两行化，状态纯色化**（用户审核反馈定稿）：PR / Issues / Actions 三个链接芯片上移到折叠仓库行的第二行，不展开即可见、可点击直达（展开后由详情区展示同样的链接行，不重复）；行内移除状态文字与指示点，CI 状态只由行首圆点颜色表达；面板底部新增五色状态图例（通过 / 失败 / 运行中 / 错误 / 无 CI）
+
 （下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
 ## [1.3.1-beta.1] - 2026-11-06
