@@ -2297,7 +2297,9 @@ struct UpdateInfo {
     has_update: bool,
     current: String,
     latest: String,
-    url: String, // 安装包直链；找不到资产时退回 release 页
+    url: String,        // 安装包直链；找不到资产时退回 release 页
+    release_url: String, // Release 页（弹层里的「查看 Release」入口）
+    notes: String,       // Release 说明原文（markdown），弹层展示用
 }
 
 fn parse_ver(v: &str) -> (u32, u32, u32) {
@@ -2481,6 +2483,8 @@ async fn check_update() -> Result<Option<UpdateInfo>, String> {
             current: current.to_string(),
             latest: tag.trim_start_matches('v').to_string(),
             url,
+            release_url: release_page,
+            notes: rel["body"].as_str().unwrap_or_default().to_string(),
         }))
     })
     .await
@@ -2676,15 +2680,72 @@ fn main() {
             });
 
             // 先建隐藏面板窗口：托盘色块颜色要用它的 theme()（effectiveAppearance）探测系统深浅
-            WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
+            let panel_builder = WebviewWindowBuilder::new(app, "panel", WebviewUrl::App("index.html".into()))
                 .title("Glint")
                 .inner_size(400.0, 600.0)
                 .decorations(false)
+                // 窗口本体透明，圆角与玻璃材质由系统 effects 画出（无边框窗口系统默认直角，太突兀）
+                .transparent(true)
+                .shadow(true)
                 .resizable(false)
                 .visible(false)
                 .skip_taskbar(true)
-                .always_on_top(true)
-                .build()?;
+                .always_on_top(true);
+            // macOS 26+：原生液态玻璃（NSGlassEffectView，圆角/阴影/深浅色系统托管），
+            // 旧版回退 Popover vibrancy（页面不透明时不可见，零视觉变化）；
+            // 前端收到 html.glass 后表面走半透明，让玻璃透出来（widget 同款机制）
+            #[cfg(target_os = "macos")]
+            let panel_builder = {
+                let b = panel_builder.effects(tauri::utils::config::WindowEffectsConfig {
+                    effects: vec![
+                        tauri::window::Effect::LiquidGlassRegular,
+                        tauri::window::Effect::Popover,
+                    ],
+                    state: None,
+                    radius: Some(16.0),
+                    color: None,
+                    interactive: false,
+                });
+                if macos_major() >= 26 {
+                    b.initialization_script("document.documentElement.classList.add('glass')")
+                } else {
+                    b
+                }
+            };
+            #[cfg(target_os = "macos")]
+            let _panel = {
+                let p = panel_builder.build()?;
+                // 方形阴影 rim 修复：窗口服务器算阴影形状时按图层几何走，WKWebView
+                // 图层是全窗方形 → 底部两角露出突出于玻璃圆角的方形阴影线（白底尤明显）。
+                // 把 webview 图层裁成玻璃同款圆角，阴影轮廓随之变圆。
+                // 坑：窗口刚建好时 WKWebView 尚未 layer-backed，layer() 返回 None，
+                // 必须显式 setWantsLayer 并延迟到主线程取（radius 与 effects.radius
+                // 及前端 #app border-radius 三处一致）
+                if macos_major() >= 26 {
+                    let w2 = p.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(800));
+                        let w3 = w2.clone();
+                        let _ = w3.run_on_main_thread(move || {
+                            unsafe {
+                                let Ok(view_ptr) = w2.ns_view() else { return };
+                                let webview: &objc2_app_kit::NSView =
+                                    &*(view_ptr as *const objc2_app_kit::NSView);
+                                webview.setWantsLayer(true);
+                                if let Some(layer) = webview.layer() {
+                                    layer.setCornerRadius(16.0);
+                                    layer.setMasksToBounds(true);
+                                } else {
+                                    eprintln!("[glass] webview layer unavailable; shadow rim stays square");
+                                }
+                            }
+                        });
+                    });
+                }
+                p
+            };
+            #[cfg(not(target_os = "macos"))]
+            panel_builder.build()?;
 
             // 桌面组件：上次会话开启过则恢复（位置/尺寸在 create_widget_window 内 clamp）
             if widget_cfg.enabled {

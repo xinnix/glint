@@ -61,13 +61,9 @@
         <span class="spacer"></span>
         <span id="spinner" class="spinner hidden"></span>
         <span id="last-refresh" class="muted small"></span>
+        <button id="update-chip" class="update-chip hidden" type="button"></button>
         <button id="lang-btn" class="ghost-btn" title="切换语言 / Language">EN</button>
       </header>
-      <div id="update-banner" class="update-banner hidden">
-        <span class="banner-icon" data-icon="arrow-up-circle"></span>
-        <span id="update-text"></span>
-        <button id="update-btn" class="ghost-btn"></button>
-      </div>
       <div id="rate-banner" class="update-banner hidden">
         <span class="banner-icon" data-icon="alert-triangle"></span>
         <span id="rate-text"></span>
@@ -107,6 +103,11 @@
                 <button id="fetch-repos-btn" class="secondary"><span data-icon="refresh-cw"></span><span data-i18n="fetchRepos">拉取我的仓库</span></button>
                 <input id="repo-filter-input" data-i18n-ph="filterPh" placeholder="筛选…" class="hidden" />
               </div>
+              <!-- 折叠头：拉取后列表默认展开，点一下收起只留摘要行，不再占半页空间 -->
+              <button id="repo-pick-toggle" class="repo-pick-toggle hidden" type="button">
+                <span class="pick-chevron"></span>
+                <span id="repo-pick-summary"></span>
+              </button>
               <div id="repo-check-list" class="repo-check-list hidden"></div>
               <div class="muted small" data-i18n="checkHint">勾选即加入监控，取消勾选即移除；可随时重新拉取。</div>
             </div>
@@ -145,6 +146,23 @@
           </div>
         </section>
 
+        <!-- 桌面组件：贴桌面层的紧凑状态列表 -->
+        <section>
+          <div class="section-label" data-i18n="widgetSection">桌面组件</div>
+          <div class="group-card">
+            <label class="group-row switch-row">
+              <span class="row-text" data-i18n="widgetEnable">在桌面显示状态组件</span>
+              <span class="spacer"></span>
+              <span class="switch"><input type="checkbox" id="widget-enabled" /><span class="slider"></span></span>
+            </label>
+            <div class="group-row">
+              <span class="row-text muted" data-i18n="widgetResetHint">拖动头部移动，位置自动记忆</span>
+              <span class="spacer"></span>
+              <button id="widget-reset-btn" class="ghost-btn" data-i18n="widgetResetPos">重置位置</button>
+            </div>
+          </div>
+        </section>
+
         <div class="row auth-status-row">
           <span id="token-manage-info" class="muted small"></span>
           <button id="relogin-btn" class="ghost-btn" data-i18n="relogin">重新登录</button>
@@ -164,6 +182,23 @@
 
         <div id="manage-message" class="message hidden"></div>
       </main>
+    </div>
+
+    <!-- 更新说明弹层：点顶栏「新版本」芯片弹出，看完 changelog 再决定是否下载 -->
+    <div id="update-overlay" class="update-overlay hidden">
+      <div class="update-panel" role="dialog" aria-modal="true">
+        <div class="update-panel-head">
+          <span class="update-panel-icon" data-icon="arrow-up-circle"></span>
+          <b id="update-panel-title"></b>
+          <button id="update-close-btn" class="ghost-btn" type="button"><span data-icon="x"></span></button>
+        </div>
+        <div id="update-notes" class="update-notes"></div>
+        <div class="update-panel-actions">
+          <button id="update-release-btn" class="ghost-btn" type="button"></button>
+          <span class="spacer"></span>
+          <button id="update-download-btn" type="button"></button>
+        </div>
+      </div>
     </div>
   </div>
   <script src="app.js"></script>

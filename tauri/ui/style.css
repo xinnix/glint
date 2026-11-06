@@ -51,15 +51,33 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 13px;
   color: var(--text);
-  background: var(--bg);
+  /* 窗口本体透明，圆角外壳由 #app 画出（无边框窗口系统默认直角） */
+  background: transparent;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
 }
 
-#app, .view { height: 100vh; display: flex; flex-direction: column; }
+#app {
+  height: 100vh;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.view { height: 100vh; display: flex; flex-direction: column; }
 .hidden { display: none !important; }
 .spacer { flex: 1; }
+
+/* ============ macOS 26+ 液态玻璃 ============ */
+/* Rust 侧面板垫了原生 NSGlassEffectView（effects: LiquidGlassRegular）时注入 html.glass：
+   外壳与卡片改半透明，让系统玻璃透出来。仅 macOS 26+ 注入；
+   旧系统 / Windows / Linux 不注入，保持不透明外壳不受影响 */
+html.glass #app { background: color-mix(in srgb, var(--bg) 40%, transparent); }
+html.glass .repo-group,
+html.glass .group-card,
+html.glass .device-status { background: color-mix(in srgb, var(--surface) 60%, transparent); }
 
 /* 细滚动条 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -157,6 +175,11 @@ main#repo-list, main.manage-body {
   flex: 1; overflow-y: auto;
   padding: 2px 12px 10px;
 }
+/* 隐藏列表滚动条：WebKit 里自定义滚动条占布局宽度，scrollbar-gutter: stable 又按默认
+   17px（而非自定义 8px）预留，两条路都会让展开行时内容宽度跳变且卡片偏离居中。
+   隐藏后列表恒定全宽居中，滚轮/触控板滚动不受影响 */
+main#repo-list::-webkit-scrollbar,
+main.manage-body::-webkit-scrollbar { width: 0; height: 0; }
 .repo-group {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -191,7 +214,7 @@ main#repo-list, main.manage-body {
 .repo-row .chevron svg { width: 14px; height: 14px; }
 .repo-row .chevron.open { transform: rotate(90deg); }
 
-/* 第二行：PR / Issues / Actions 芯片，不展开即见；左缘与行首文字对齐（12 + 点9 + 间距10） */
+/* 第二行：PR / Issues / Actions 芯片，常驻（展开后保留）；左缘与行首文字对齐（12 + 点9 + 间距10） */
 .repo-sub {
   display: flex; align-items: center; gap: 6px;
   padding: 0 12px 9px 31px;
@@ -208,7 +231,19 @@ main#repo-list, main.manage-body {
 .status-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
 .status-legend .lg .dot { width: 7px; height: 7px; }
 
-/* 展开详情 */
+/* 展开详情：外层做 0fr→1fr 高度过渡 + 淡入；裁切放在无 padding 的 clip 层，0 态才是真的 0 高 */
+.detail-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.22s ease, opacity 0.22s ease;
+}
+.detail-wrap.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.detail-wrap .detail-clip { min-height: 0; overflow: hidden; }
+
 .detail {
   padding: 10px 12px 12px;
   border-top: 1px solid var(--border);
@@ -462,6 +497,25 @@ label.switch-row { cursor: pointer; }
   padding: 8px 6px;
 }
 
+/* 拉取列表折叠头：收起后只留一行「已拉取 N · 已监控 M」摘要（覆盖全局绿色按钮样式） */
+.repo-pick-toggle {
+  display: flex; align-items: center; gap: 6px;
+  height: auto; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-2); font-size: 12px; font-weight: 500;
+  cursor: pointer; text-align: left; white-space: normal;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.repo-pick-toggle:hover,
+.repo-pick-toggle:active { filter: none; color: var(--text); }
+.repo-pick-toggle .pick-chevron {
+  display: inline-flex; flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+.repo-pick-toggle .pick-chevron svg { width: 12px; height: 12px; }
+.repo-pick-toggle.open .pick-chevron { transform: rotate(90deg); }
+
 .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .row label { font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
 
@@ -569,3 +623,172 @@ input::placeholder { color: var(--text-3); }
 .update-banner .banner-icon svg { width: 14px; height: 14px; }
 .update-banner span { color: var(--text); }
 .update-banner button { margin-left: auto; height: 24px; padding: 0 10px; font-size: 11.5px; }
+
+/* 顶栏「新版本」芯片：有更新才出现，点开更新说明弹层 */
+.update-chip {
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 13%, transparent);
+}
+.update-chip:hover { filter: none; background: color-mix(in srgb, var(--orange) 22%, transparent); }
+.update-chip:active { filter: none; background: color-mix(in srgb, var(--orange) 30%, transparent); }
+.update-chip svg { flex-shrink: 0; }
+
+/* 更新说明弹层：盖住整个窗口（#app 圆角裁切），居中卡片 + changelog + 下载 */
+#app { position: relative; }
+.update-overlay {
+  position: absolute; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.32);
+  animation: overlay-fade 0.15s ease;
+}
+.update-panel {
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 420px; max-height: calc(100% - 16px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  animation: panel-pop 0.18s ease;
+}
+@keyframes overlay-fade { from { opacity: 0; } }
+@keyframes panel-pop { from { opacity: 0; transform: scale(0.96) translateY(6px); } }
+
+.update-panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 10px 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.update-panel-icon { display: flex; color: var(--orange); flex-shrink: 0; }
+.update-panel-icon svg { width: 15px; height: 15px; }
+.update-panel-head b { flex: 1; }
+.update-panel-head .ghost-btn { padding: 5px 6px; }
+
+.update-notes {
+  flex: 1; overflow-y: auto;
+  padding: 12px 16px;
+  font-size: 12px; line-height: 1.55;
+  color: var(--text-2);
+  user-select: text; cursor: auto;
+}
+.update-notes .note-gap { height: 5px; }
+.update-notes .note-gap:first-child { display: none; }
+.update-notes .note-head { font-weight: 600; color: var(--text); margin-top: 4px; }
+.update-notes .note-li { display: flex; gap: 7px; padding: 1.5px 0; }
+.update-notes .note-dot { color: var(--text-3); flex-shrink: 0; }
+.update-notes .note-p { padding: 1px 0; }
+
+.update-panel-actions {
+  display: flex; align-items: center; gap: 4px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+.update-panel-actions button { height: 26px; padding: 0 12px; font-size: 11.5px; }
+
+/* ============ 桌面组件（widget.html） ============ */
+/* 窗口本体透明 + 磨砂材质（macOS vibrancy / Windows Acrylic）由 Rust 侧提供，
+   这里只画内容层；Linux 无 effects 时靠本节半透明底色兜底 */
+
+#widget-root {
+  position: relative; /* 拖动引导胶囊（.w-hint）的定位上下文 */
+  height: 100vh;
+  display: flex; flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  /* 半透明底：磨砂材质之上再叠一层薄底保证可读性；无磨砂平台直接看到这层 */
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+}
+
+#widget-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px 6px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: default; /* 拖动区 */
+}
+#widget-header .ghost-btn { height: 24px; width: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+#widget-header .pill { margin-left: 2px; }
+/* 图钉：锁定时实心 + 倾斜 45°（钉上去了的隐喻），未锁定为描边直立 */
+#w-pin-btn svg { transition: transform 0.15s ease; }
+#w-pin-btn.pinned svg { fill: currentColor; transform: rotate(45deg); }
+/* 刷新进行中：按钮处于 disabled（opacity 0.4），busy 时略抬回保证旋转图标可读 */
+#w-refresh-btn.busy { opacity: 0.7; }
+
+#w-list { flex: 1; overflow-y: auto; padding: 4px 6px 8px; }
+
+.w-group { display: flex; flex-direction: column; }
+
+.w-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.w-row:hover { background: var(--surface-2); }
+.w-row .dot { width: 9px; height: 9px; }
+.w-name {
+  font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.w-time { font-size: 11px; color: var(--text-2); flex-shrink: 0; }
+.w-badge {
+  font-size: 11px; font-weight: 600; color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  padding: 2px 7px; border-radius: 9px; flex-shrink: 0;
+}
+
+.w-empty {
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  font-size: 12px; text-align: center; padding: 12px;
+}
+.w-empty button { height: 26px; padding: 0 12px; font-size: 12px; }
+
+/* 右键 / ⋯ 菜单弹层 */
+#w-ctx-menu {
+  position: fixed;
+  min-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  padding: 4px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+}
+#w-ctx-menu.hidden { display: none; }
+#w-ctx-menu button {
+  background: none; border: none;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12.5px; color: var(--text);
+}
+#w-ctx-menu button:hover { background: var(--surface-2); }
+#w-ctx-menu button.danger { color: var(--red); }
+#w-ctx-menu .ctx-sep { height: 1px; background: var(--border); margin: 3px 6px; }
+
+/* 拖动引导胶囊：悬浮底部居中，不拦截点击；仅默认位置显示，首次拖动后隐藏 */
+.w-hint {
+  position: absolute;
+  left: 50%; bottom: 12px; transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 4px 12px;
+  font-size: 11px; color: var(--text-2);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+  animation: w-hint-in 0.35s ease 0.4s backwards;
+}
+@keyframes w-hint-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

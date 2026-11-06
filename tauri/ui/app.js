@@ -36,12 +36,18 @@ const I18N = {
     fetchRepos: '拉取我的仓库', fetching: '拉取中…', filterPh: '筛选…', listLoading: '正在拉取仓库列表…',
     checkHint: '勾选即加入监控，取消勾选即移除；可随时重新拉取。',
     noMatch: '没有匹配的仓库', emptyFetched: '未拉取到仓库', fetchFailed: '拉取失败：{msg}',
+    pickSummary: '已拉取 {n} 个仓库 · 已监控 {m} 个', collapseList: '收起列表', expandList: '展开列表',
     refreshNotify: '刷新与通知', interval: '刷新间隔',
     notifyFailure: '失败时发系统通知', notifySuccess: '运行中转为通过时发通知',
     autostart: '开机自启（登录时自动启动）',
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
+    widgetSection: '桌面组件', widgetEnable: '在桌面显示状态组件',
+    widgetResetHint: '拖动头部移动，位置自动记忆', widgetResetPos: '重置位置',
+    widgetOn: '桌面组件已显示', widgetOff: '桌面组件已关闭', widgetResetDone: '组件已移回屏幕中央',
     updateAvailable: '新版本 v{v} 可用', updateDownload: '下载',
+    updateChip: '新版本 v{v}', viewRelease: '查看 Release 页',
+    notesEmpty: '暂无更新说明',
     aboutSection: '关于', checkUpdate: '检查更新', upToDate: '已是最新版本',
     newAvailShort: '新版本 v{v} 可用', checkUpdateFailed: '检查失败：{msg}',
     rateLimitHint: 'GitHub API 限流中，登录后限额提升至 5000 次/时',
@@ -90,12 +96,18 @@ const I18N = {
     fetchRepos: 'Fetch my repos', fetching: 'Fetching…', filterPh: 'Filter…', listLoading: 'Loading repository list…',
     checkHint: 'Check to monitor, uncheck to remove; re-fetch anytime.',
     noMatch: 'No matching repos', emptyFetched: 'No repos found', fetchFailed: 'Fetch failed: {msg}',
+    pickSummary: '{n} repos fetched · {m} monitored', collapseList: 'Collapse list', expandList: 'Expand list',
     refreshNotify: 'Refresh & Notifications', interval: 'Interval',
     notifyFailure: 'Notify on failure', notifySuccess: 'Notify when running → pass',
     autostart: 'Launch at login',
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
+    widgetSection: 'Desktop Widget', widgetEnable: 'Show status widget on desktop',
+    widgetResetHint: 'Drag the header to move; position is remembered', widgetResetPos: 'Reset Position',
+    widgetOn: 'Desktop widget shown', widgetOff: 'Desktop widget closed', widgetResetDone: 'Widget moved back to the center of the screen',
     updateAvailable: 'New version v{v} available', updateDownload: 'Download',
+    updateChip: 'Update v{v}', viewRelease: 'View on GitHub',
+    notesEmpty: 'No release notes',
     aboutSection: 'About', checkUpdate: 'Check for updates', upToDate: 'Up to date',
     newAvailShort: 'New version v{v} available', checkUpdateFailed: 'Check failed: {msg}',
     rateLimitHint: 'GitHub API rate limited — sign in for 5,000 req/h',
@@ -322,6 +334,24 @@ function failureSummaryText(s, entry) {
   return lines.join('\n');
 }
 
+// 详情区包一层做展开/收起动画（grid 0fr→1fr 高度过渡）；instant=true 用于刷新重渲染，直接展开不播动画
+function buildDetail(s, instant) {
+  const wrap = el('div', `detail-wrap${instant ? ' open' : ''}`);
+  const clip = el('div', 'detail-clip');
+  clip.appendChild(detailSection(s));
+  wrap.appendChild(clip);
+  return wrap;
+}
+
+// 收起动画结束后移除节点；transitionend 不触发时由定时器兜底
+function collapseDetail(wrap) {
+  wrap.classList.remove('open');
+  let done = false;
+  const remove = () => { if (!done) { done = true; wrap.remove(); } };
+  wrap.addEventListener('transitionend', (e) => { if (e.propertyName === 'grid-template-rows') remove(); });
+  setTimeout(remove, 260);
+}
+
 function renderRepoCard(container, s) {
   const item = el('div', 'repo-item');
   const row = el('div', 'repo-row');
@@ -340,15 +370,10 @@ function renderRepoCard(container, s) {
   chevron.innerHTML = icon('chevron-right', 14);
   row.appendChild(chevron);
 
-  row.addEventListener('click', () => {
-    if (expanded.has(s.repo)) expanded.delete(s.repo);
-    else expanded.add(s.repo);
-    render();
-  });
   item.appendChild(row);
 
-  // PR / Issues / Actions 芯片：不展开即见；展开后详情区已有同样的链接行，不再重复
-  if (!isExpanded && s.open_prs >= 0) {
+  // PR / Issues / Actions 芯片：常驻第二行，展开后也保留直达入口
+  if (s.open_prs >= 0) {
     const sub = el('div', 'repo-sub');
     const mkChip = (ic, text, url) => {
       const a = el('a', 'link-chip');
@@ -366,9 +391,31 @@ function renderRepoCard(container, s) {
   }
 
   if (isExpanded) {
-    item.appendChild(detailSection(s));
+    item.appendChild(buildDetail(s, true));
   }
   container.appendChild(item);
+
+  // 手风琴展开：同一时间只展开一个仓库；切换走高度过渡动画，不做整表重渲染
+  row.addEventListener('click', () => {
+    if (expanded.has(s.repo)) {
+      expanded.delete(s.repo);
+      chevron.classList.remove('open');
+      const wrap = item.querySelector('.detail-wrap');
+      if (wrap) collapseDetail(wrap);
+      return;
+    }
+    expanded.clear();
+    expanded.add(s.repo);
+    for (const other of container.querySelectorAll('.detail-wrap.open')) collapseDetail(other);
+    for (const c of container.querySelectorAll('.chevron.open')) c.classList.remove('open');
+    chevron.classList.add('open');
+    const stale = item.querySelector('.detail-wrap');
+    if (stale) stale.remove(); // 快速连点时清掉还在收起动画中的旧详情
+    const wrap = buildDetail(s, false);
+    item.appendChild(wrap);
+    wrap.offsetHeight; // 强制回流，让 0fr 初态生效后再放开，触发过渡
+    wrap.classList.add('open');
+  });
 }
 
 function detailSection(s) {
@@ -531,7 +578,7 @@ function detailSection(s) {
     detail.appendChild(none);
   }
 
-  // PR/Issues/Actions 链接行已上移到折叠行的第二行（.repo-sub），详情区不再重复展示
+  // PR/Issues/Actions 链接行常驻仓库第二行（.repo-sub），详情区不再重复展示
 
   return detail;
 }
@@ -628,6 +675,7 @@ async function loadManage() {
   document.getElementById('notify-failure').checked = currentConfig.notify_on_failure;
   document.getElementById('notify-success').checked = currentConfig.notify_on_success;
   document.getElementById('autostart').checked = await invoke('autostart_state');
+  document.getElementById('widget-enabled').checked = !!(currentConfig.widget && currentConfig.widget.enabled);
   document.getElementById('client-id-input').value = currentConfig.oauth_client_id || '';
   document.getElementById('about-version').textContent = 'Glint v' + (await invoke('app_version'));
   renderManageRepos(currentConfig);
@@ -707,6 +755,7 @@ function render() {
   try {
     renderPanel();
     renderRateHint();
+    renderUpdateChip();
     applyI18n();
   } catch (e) {
     report(`render failed: ${e && e.stack ? e.stack : e}`);
@@ -760,6 +809,29 @@ function deviceWaitingNode(info) {
 let fetchedRepos = []; // 最近一次拉取的可监控仓库
 let repoFilter = '';
 let fetchingRepos = false;
+let repoPickOpen = true; // 拉取列表展开态：收起后只留折叠头一行摘要，不占页面空间
+
+// 折叠头摘要：拉取了多少个，其中勾选监控了多少个
+function monitoredAmongFetched() {
+  if (!currentConfig) return 0;
+  return fetchedRepos.filter((r) => currentConfig.repos.includes(r.full_name)).length;
+}
+
+function updatePickToggle() {
+  const toggle = document.getElementById('repo-pick-toggle');
+  if (!fetchedRepos.length) {
+    toggle.classList.add('hidden');
+    return;
+  }
+  toggle.classList.remove('hidden');
+  toggle.querySelector('.pick-chevron').innerHTML = icon('chevron-right', 12);
+  toggle.classList.toggle('open', repoPickOpen);
+  toggle.title = t(repoPickOpen ? 'collapseList' : 'expandList');
+  document.getElementById('repo-pick-summary').textContent = t('pickSummary', {
+    n: fetchedRepos.length,
+    m: monitoredAmongFetched(),
+  });
+}
 
 async function fetchUserRepos() {
   const btn = document.getElementById('fetch-repos-btn');
@@ -771,6 +843,7 @@ async function fetchUserRepos() {
   label.textContent = t('fetching');
   btn.classList.add('busy');
   fetchingRepos = true;
+  repoPickOpen = true; // 重新拉取 = 想看列表，自动展开
   renderCheckList(); // 立即出现加载态，不等网络返回
   try {
     fetchedRepos = await invoke('fetch_user_repos');
@@ -790,6 +863,7 @@ function renderCheckList() {
   const box = document.getElementById('repo-check-list');
   const filterInput = document.getElementById('repo-filter-input');
   box.innerHTML = '';
+  updatePickToggle();
   if (!fetchedRepos.length) {
     // 首次拉取中：列表区显示 spinner，而不是一片空白
     if (fetchingRepos) {
@@ -803,6 +877,12 @@ function renderCheckList() {
       box.classList.add('hidden');
       filterInput.classList.add('hidden');
     }
+    return;
+  }
+  // 收起态：折叠头已说明拉取/监控数量，列表与筛选框都藏起来
+  if (!repoPickOpen) {
+    box.classList.add('hidden');
+    filterInput.classList.add('hidden');
     return;
   }
   box.classList.remove('hidden');
@@ -825,6 +905,7 @@ function renderCheckList() {
       }
       await invoke('save_config', { config: currentConfig });
       renderManageRepos(currentConfig);
+      updatePickToggle(); // 摘要里的已监控数量同步变化
     });
     item.appendChild(cb);
     item.appendChild(el('span', 'name', r.full_name));
@@ -849,6 +930,22 @@ function bindEvents() {
   document.getElementById('manage-btn').addEventListener('click', () => switchView('manage'));
   document.getElementById('back-btn').addEventListener('click', () => switchView('panel'));
 
+  // 更新弹层：芯片弹出；× / 背景点击 / Esc 关闭；下载与 Release 链接读当下 updateInfo
+  document.getElementById('update-chip').addEventListener('click', openUpdatePanel);
+  document.getElementById('update-close-btn').addEventListener('click', closeUpdatePanel);
+  document.getElementById('update-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeUpdatePanel();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeUpdatePanel();
+  });
+  document.getElementById('update-download-btn').addEventListener('click', () => {
+    if (updateInfo) invoke('open_url', { url: updateInfo.url });
+  });
+  document.getElementById('update-release-btn').addEventListener('click', () => {
+    if (updateInfo) invoke('open_url', { url: updateInfo.release_url });
+  });
+
   document.getElementById('refresh-btn').addEventListener('click', () => invoke('refresh_now'));
   document.getElementById('quit-btn').addEventListener('click', () => invoke('quit_app'));
 
@@ -864,6 +961,11 @@ function bindEvents() {
   document.getElementById('onboard-lang-btn').addEventListener('click', toggleLang);
 
   document.getElementById('fetch-repos-btn').addEventListener('click', fetchUserRepos);
+  // 折叠头：点一下收起/展开拉取列表，收起后只留一行摘要
+  document.getElementById('repo-pick-toggle').addEventListener('click', () => {
+    repoPickOpen = !repoPickOpen;
+    renderCheckList();
+  });
   document.getElementById('repo-filter-input').addEventListener('input', (e) => {
     repoFilter = e.target.value;
     renderCheckList();
@@ -883,12 +985,33 @@ function bindEvents() {
     }
   });
 
+  // 桌面组件开关：显隐由后端统一处理（建/隐窗口 + 写配置 + 重建托盘菜单）
+  document.getElementById('widget-enabled').addEventListener('change', async (e) => {
+    try {
+      await invoke('set_widget_enabled', { enable: e.target.checked });
+      showManageMessage(t(e.target.checked ? 'widgetOn' : 'widgetOff'));
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      showManageMessage(t('autostartFailed', { msg: String(err) }));
+    }
+  });
+
+  // 组件移回屏幕中央（默认位置；找不到了 / 拖出屏幕外时用）
+  document.getElementById('widget-reset-btn').addEventListener('click', async () => {
+    try {
+      await invoke('reset_widget_position');
+      showManageMessage(t('widgetResetDone'));
+    } catch (err) {
+      showManageMessage(t('autostartFailed', { msg: String(err) }));
+    }
+  });
+
   document.getElementById('client-id-input').addEventListener('change', persistConfig);
 
   // 重新登录：回到登录引导态（复用 onboarding 的登录按钮与状态展示）
   document.getElementById('relogin-btn').addEventListener('click', () => applyAuthState(false));
 
-  // 检查更新：结果直接展示在「关于」区内，有新版附带下载按钮
+  // 检查更新：结果直接展示在「关于」区内；有新版时存入 updateInfo 并弹出更新说明
   document.getElementById('check-update-btn').addEventListener('click', async () => {
     const btn = document.getElementById('check-update-btn');
     const box = document.getElementById('about-status');
@@ -899,11 +1022,12 @@ function bindEvents() {
       const info = await invoke('check_update');
       box.textContent = '';
       if (info && info.has_update) {
-        box.appendChild(document.createTextNode(t('newAvailShort', { v: info.latest }) + ' '));
-        const dl = el('button', 'ghost-btn', t('updateDownload'));
-        dl.addEventListener('click', () => invoke('open_url', { url: info.url }));
-        box.appendChild(dl);
+        updateInfo = info;
+        box.textContent = t('newAvailShort', { v: info.latest });
+        openUpdatePanel();
       } else {
+        updateInfo = null;
+        renderUpdateChip();
         box.textContent = t('upToDate');
       }
     } catch (e) {
@@ -982,19 +1106,70 @@ function bindEvents() {
 }
 
 // ============ 检查更新（静默，失败不影响主功能） ============
+// 有新版本时顶栏出现芯片，点芯片弹出更新说明（changelog），看完再决定是否下载
+
+let updateInfo = null; // 最近一次 check_update 的结果；null = 无更新
 
 async function checkUpdate() {
   try {
     const info = await invoke('check_update');
-    if (!info || !info.has_update) return;
-    document.getElementById('update-text').textContent = t('updateAvailable', { v: info.latest });
-    const btn = document.getElementById('update-btn');
-    btn.textContent = t('updateDownload');
-    btn.onclick = () => invoke('open_url', { url: info.url });
-    document.getElementById('update-banner').classList.remove('hidden');
+    updateInfo = info && info.has_update ? info : null;
+    renderUpdateChip();
   } catch (e) {
     report(`check update failed: ${e}`);
   }
+}
+
+function renderUpdateChip() {
+  const chip = document.getElementById('update-chip');
+  if (!updateInfo) {
+    chip.classList.add('hidden');
+    return;
+  }
+  chip.innerHTML = `${icon('arrow-up-circle', 12)}<span></span>`;
+  chip.querySelector('span').textContent = t('updateChip', { v: updateInfo.latest });
+  chip.title = t('updateAvailable', { v: updateInfo.latest });
+  chip.classList.remove('hidden');
+}
+
+function openUpdatePanel() {
+  if (!updateInfo) return;
+  document.getElementById('update-panel-title').textContent = t('updateAvailable', { v: updateInfo.latest });
+  renderReleaseNotes(document.getElementById('update-notes'), updateInfo.notes);
+  document.getElementById('update-download-btn').textContent = `${t('updateDownload')} v${updateInfo.latest}`;
+  document.getElementById('update-release-btn').textContent = t('viewRelease');
+  document.getElementById('update-overlay').classList.remove('hidden');
+}
+
+function closeUpdatePanel() {
+  document.getElementById('update-overlay').classList.add('hidden');
+}
+
+// Release 说明是 markdown 纯文本，做轻量渲染：# 标题加粗、- 列表加圆点、[文本](链接) 留文本。
+// 全程用 textContent 建节点，不走 innerHTML，避免远端内容注入
+function renderReleaseNotes(container, markdown) {
+  container.innerHTML = '';
+  const linkRe = /\[([^\]]+)\]\([^)]*\)/g;
+  let visible = 0; // 空白行只产生间距，不算内容；全空时展示兜底文案
+  for (const raw of String(markdown || '').split('\n')) {
+    const line = raw.trim().replace(/<!--.*?-->/g, '').replace(/\*\*/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '');
+    if (!line) {
+      if (visible) container.appendChild(el('div', 'note-gap'));
+      continue;
+    }
+    visible += 1;
+    if (/^#{1,6}\s/.test(line)) {
+      container.appendChild(el('div', 'note-head', line.replace(/^#{1,6}\s/, '')));
+    } else if (/^[-*]\s/.test(line)) {
+      const row = el('div', 'note-li');
+      row.appendChild(el('span', 'note-dot', '•'));
+      row.appendChild(el('span', '', line.replace(linkRe, '$1').slice(2)));
+      container.appendChild(row);
+    } else {
+      container.appendChild(el('div', 'note-p', line.replace(linkRe, '$1')));
+    }
+  }
+  if (!visible) container.appendChild(el('div', 'muted small', t('notesEmpty')));
 }
 
 // ============ 启动 ============
