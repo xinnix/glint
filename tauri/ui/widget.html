@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="widget-page">
+  <div id="widget-root">
+    <header id="widget-header">
+      <span id="w-overall" class="pill gray"><i class="dot"></i><span id="w-overall-text">—</span></span>
+      <span class="spacer"></span>
+      <button id="w-pin-btn" class="ghost-btn" title="Pin"></button>
+      <button id="w-refresh-btn" class="ghost-btn" title="Refresh"></button>
+      <button id="w-menu-btn" class="ghost-btn" title="Menu"></button>
+    </header>
+    <main id="w-list"></main>
+    <!-- 拖动引导：仅默认位置（屏幕中央）显示，首次拖动后隐藏（widget.js 控制） -->
+    <div id="w-hint" class="w-hint hidden"></div>
+  </div>
+  <!-- 自定义右键菜单：桌面层窗口没有原生菜单栏，用 HTML 弹层 -->
+  <div id="w-ctx-menu" class="hidden">
+    <button id="w-ctx-refresh"></button>
+    <button id="w-ctx-panel"></button>
+    <div class="ctx-sep"></div>
+    <button id="w-ctx-close" class="danger"></button>
+  </div>
+  <script src="widget.js"></script>
+</body>
+</html>

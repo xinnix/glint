@@ -10,7 +10,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
-use tauri::menu::{IsMenuItem, Menu, MenuItem, MenuEvent, PredefinedMenuItem};
+use tauri::menu::{
+    CheckMenuItem, IsMenuItem, Menu, MenuItem, MenuEvent, PredefinedMenuItem,
+};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
@@ -106,6 +108,7 @@ struct Config {
     notify_on_success: bool,
     lang: String,
     oauth_client_id: String, // Device Flow 用的 OAuth App Client ID（公开值，无需 secret）
+    widget: WidgetConfig,
 }
 
 impl Default for Config {
@@ -117,7 +120,29 @@ impl Default for Config {
             notify_on_success: true,
             lang: String::new(),
             oauth_client_id: String::new(),
+            widget: WidgetConfig::default(),
         }
+    }
+}
+
+/// 桌面组件（widget 窗口）持久化状态。
+/// x/y 是逻辑坐标；恢复时越界（拔显/换主屏）回退到默认右下角。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+struct WidgetConfig {
+    enabled: bool,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    // 图钉锁定：true 时窗口不可拖动（前端拖动手柄禁用 + set_movable(false) 双保险）
+    pinned: bool,
+}
+
+impl Default for WidgetConfig {
+    fn default() -> Self {
+        // x=y=0 表示「从未保存过位置」，恢复时计算默认右下角
+        Self { enabled: false, x: 0.0, y: 0.0, width: 300.0, height: 220.0, pinned: false }
     }
 }
 
@@ -167,6 +192,31 @@ mod config_tests {
         assert!(c.notify_on_failure);
         assert!(c.notify_on_success);
         assert!(c.repos.is_empty());
+        // widget 段缺省 = 关闭、无保存位置
+        assert!(!c.widget.enabled);
+        assert_eq!(c.widget.width, 300.0);
+        assert_eq!(c.widget.height, 220.0);
+        assert_eq!(c.widget.x, 0.0);
+    }
+
+    // widget 段 roundtrip：保存的几何信息必须无损恢复（位置记忆功能依赖）
+    #[test]
+    fn widget_config_roundtrips() {
+        let raw = r#"{"repos":[],"widget":{"enabled":true,"x":120.5,"y":88.25,"width":320.0,"height":260.0,"pinned":true}}"#;
+        let c: Config = serde_json::from_str(raw).unwrap();
+        assert!(c.widget.enabled);
+        assert_eq!(c.widget, WidgetConfig { enabled: true, x: 120.5, y: 88.25, width: 320.0, height: 260.0, pinned: true });
+        let out = serde_json::to_string(&c.widget).unwrap();
+        let back: WidgetConfig = serde_json::from_str(&out).unwrap();
+        assert_eq!(back, c.widget);
+    }
+
+    // 图钉字段是后加的：旧配置（无 pinned 段）必须按未锁定处理
+    #[test]
+    fn widget_config_missing_pinned_defaults_false() {
+        let raw = r#"{"repos":[],"widget":{"enabled":true,"x":10.0,"y":20.0,"width":300.0,"height":220.0}}"#;
+        let c: Config = serde_json::from_str(raw).unwrap();
+        assert!(!c.widget.pinned);
     }
     // 「复制错误」摘录：错误行向上带 15 行上下文（根因常在错误前执行的输出里）、
     // 向下带 5 行，剥离时间戳与 ##[error] 标记；无标记时回退日志末尾
@@ -294,6 +344,14 @@ struct Shared {
     refreshing: AtomicBool,
     wake: Mutex<mpsc::Sender<()>>,
     device_flow_cancel: Mutex<Option<Arc<AtomicBool>>>,
+    // 桌面组件：enabled 供托盘菜单勾选态读取（避免每次重建菜单读盘）；
+    // geo 存待落盘的最新 (x,y,w,h) 逻辑坐标，dirty 为最后一次变动的毫秒时间戳
+    widget_enabled: AtomicBool,
+    widget_geo: Mutex<Option<(f64, f64, f64, f64)>>,
+    widget_geo_dirty_ms: Mutex<u64>,
+    // widget 是否处于默认位置（首次开启/保存位置失效回退时置位）：
+    // widget_at_default 命令读它，前端只在此时显示一次性拖动引导
+    widget_at_default: AtomicBool,
 }
 
 // ============ GitHub API DTO（字段名与 API 一致） ============
@@ -1533,6 +1591,231 @@ fn position_panel_below_tray(
     let _ = w.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
 }
 
+// ============ 桌面组件（widget 窗口） ============
+//
+// 第二个常驻 webview 窗口，贴桌面层展示各仓库 CI 状态。数据复用 poller 的
+// status-updated 事件广播（app.emit 推送到所有 webview），widget 无独立拉取逻辑。
+
+const WIDGET_LABEL: &str = "widget";
+
+/// widget 默认位置：主显示器正中央（全局逻辑坐标）。
+/// 右下角用户容易找不到（不知道组件去哪了），中央最具发现性；
+/// 拖走后位置自动记忆，不再回到默认位置。
+fn widget_default_position(app: &AppHandle, w: f64, h: f64) -> (f64, f64) {
+    // panel 窗口常驻（启动时先建），用它取主显示器最稳
+    let mon = app
+        .get_webview_window("panel")
+        .and_then(|p| p.primary_monitor().ok().flatten());
+    let Some(mon) = mon else { return (100.0, 100.0) };
+    let k = mon.scale_factor().max(0.0001);
+    let (mx, my, mw, mh) = (
+        mon.position().x as f64 / k,
+        mon.position().y as f64 / k,
+        mon.size().width as f64 / k,
+        mon.size().height as f64 / k,
+    );
+    (mx + (mw - w) / 2.0, my + (mh - h) / 2.0)
+}
+
+/// 校验保存的 widget 位置是否仍可见（显示器被拔/换主屏后可能整块漂出虚拟桌面）。
+/// 与任一显示器交集过半则夹回该屏范围；完全不可见返回 None（调用方回退默认位置）。
+fn widget_clamp_position(
+    app: &AppHandle,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Option<(f64, f64)> {
+    let panel = app.get_webview_window("panel")?;
+    let monitors = panel.available_monitors().ok()?;
+    for m in monitors {
+        let k = m.scale_factor().max(0.0001);
+        let (mx, my, mw, mh) = (
+            m.position().x as f64 / k,
+            m.position().y as f64 / k,
+            m.size().width as f64 / k,
+            m.size().height as f64 / k,
+        );
+        let iw = (x + w).min(mx + mw) - x.max(mx);
+        let ih = (y + h).min(my + mh) - y.max(my);
+        if iw * ih >= w * h * 0.5 {
+            let cx = x.clamp(mx, (mx + mw - w).max(mx));
+            let cy = y.clamp(my, (my + mh - h).max(my));
+            return Some((cx, cy));
+        }
+    }
+    None
+}
+
+/// 创建 widget 窗口（隐藏）；调用方按需 show。
+/// 磨砂材质：macOS 26+ 用 Liquid Glass，旧版回退 Sidebar vibrancy（Tauri 支持
+/// 同时传入两者做版本回退）；Windows 用 Acrylic；Linux 不设（CSS 半透明兜底）。
+fn create_widget_window(
+    app: &AppHandle,
+    cfg: &WidgetConfig,
+) -> tauri::Result<tauri::WebviewWindow> {
+    let (w, h) = (cfg.width.max(220.0), cfg.height.max(140.0));
+    // 是否落在默认位置：首次开启（从未拖过）或保存位置失效回退（换屏后不可见）。
+    // 前端据此显示一次性拖动引导（widget.js 查询 widget_at_default 命令）
+    let (at_default, x, y) = if cfg.x == 0.0 && cfg.y == 0.0 {
+        let (x, y) = widget_default_position(app, w, h);
+        (true, x, y)
+    } else {
+        match widget_clamp_position(app, cfg.x, cfg.y, w, h) {
+            Some((x, y)) => (false, x, y),
+            None => {
+                let (x, y) = widget_default_position(app, w, h);
+                (true, x, y)
+            }
+        }
+    };
+    let mut builder = WebviewWindowBuilder::new(
+        app,
+        WIDGET_LABEL,
+        WebviewUrl::App("widget.html".into()),
+    )
+    .title("Glint Widget")
+    .inner_size(w, h)
+    .position(x, y)
+    .decorations(false)
+    .resizable(true)
+    .transparent(true)
+    .shadow(false)
+    .visible(false)
+    .skip_taskbar(true)
+    .always_on_top(false)
+    .focused(false);
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        builder = builder.effects(tauri::utils::config::WindowEffectsConfig {
+            effects: vec![
+                #[cfg(target_os = "macos")]
+                tauri::window::Effect::LiquidGlassRegular,
+                #[cfg(target_os = "macos")]
+                tauri::window::Effect::Sidebar,
+                #[cfg(target_os = "windows")]
+                tauri::window::Effect::Acrylic,
+            ],
+            state: None,
+            radius: Some(12.0),
+            color: None,
+            interactive: false,
+        });
+    }
+    let win = builder.build()?;
+    if let Some(s) = app.try_state::<Shared>() {
+        s.widget_at_default.store(at_default, Ordering::Relaxed);
+    }
+    // 图钉锁定：窗口级禁止移动（主要防线在前端拖动手柄 guard，这里是双保险）
+    #[cfg(target_os = "macos")]
+    apply_pin_lock(&win, cfg.pinned);
+    #[cfg(target_os = "macos")]
+    apply_desktop_level(&win);
+    Ok(win)
+}
+
+/// macOS：把窗口压到桌面图标层（所有普通窗口之下），固定在每个 Space 上。
+/// 应用是 Accessory policy，点击组件不会把 Glint 拉到前台，webview 点击事件照常触发。
+#[cfg(target_os = "macos")]
+fn apply_desktop_level(w: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior, NSWindowLevel};
+    let Ok(ns) = w.ns_window() else { return };
+    let ns_window = ns as *mut NSWindow;
+    assert!(!ns_window.is_null());
+    let ns_window = unsafe { &*ns_window };
+    // kCGDesktopIconWindowLevel：桌面图标层（低于一切普通窗口）
+    ns_window.setLevel(NSWindowLevel::from(-2147483002isize));
+    ns_window.setCollectionBehavior(
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::Stationary
+            | NSWindowCollectionBehavior::FullScreenAuxiliary,
+    );
+}
+
+/// macOS：窗口级锁定移动（NSWindow.setMovable）。前端拖动手柄 guard 是主防线，
+/// 这里兜底挡住系统级移动路径。Windows/Linux 的无边框窗口只能经 startDragging
+/// 拖动（已被前端 guard 覆盖），无原生移动路径，无需平台处理。
+#[cfg(target_os = "macos")]
+fn apply_pin_lock(w: &tauri::WebviewWindow, pinned: bool) {
+    use objc2_app_kit::NSWindow;
+    let Ok(ns) = w.ns_window() else { return };
+    let ns_window = ns as *mut NSWindow;
+    assert!(!ns_window.is_null());
+    let ns_window = unsafe { &*ns_window };
+    ns_window.setMovable(!pinned);
+}
+
+/// 开/关桌面组件（托盘菜单与管理页开关共用）。写配置 → 显隐窗口 → 重建托盘菜单。
+fn set_widget_enabled_impl(app: &AppHandle, enable: bool) {
+    let mut cfg = load_config();
+    cfg.widget.enabled = enable;
+    let _ = save_config_file(&cfg);
+    if let Some(s) = app.try_state::<Shared>() {
+        s.widget_enabled.store(enable, Ordering::Relaxed);
+    }
+    match app.get_webview_window(WIDGET_LABEL) {
+        Some(w) => {
+            if enable {
+                let _ = w.show();
+            } else {
+                let _ = w.hide();
+            }
+        }
+        None if enable => {
+            if let Ok(w) = create_widget_window(app, &cfg.widget) {
+                let _ = w.show();
+            }
+        }
+        None => {}
+    }
+    let states = app
+        .try_state::<Shared>()
+        .map(|sh| sh.snapshot.lock().unwrap().clone())
+        .unwrap_or_default();
+    update_tray(app, &states);
+}
+
+/// 组件移回屏幕中央（默认位置）。新位置经 Moved 事件由 saver 线程去抖落盘。
+fn reset_widget_position_impl(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(WIDGET_LABEL) else { return };
+    let wk = w.scale_factor().unwrap_or(1.0).max(0.0001);
+    let (cw, ch) = match w.inner_size() {
+        Ok(s) => (s.width as f64 / wk, s.height as f64 / wk),
+        Err(_) => (300.0, 220.0),
+    };
+    let (x, y) = widget_default_position(app, cw, ch);
+    let _ = w.set_position(tauri::LogicalPosition::new(x, y));
+}
+
+/// widget 几何信息去抖落盘。拖动/缩放每秒触发上百个 Moved/Resized 事件，
+/// 事件处理器只更新 Shared 里的待写值并标脏，本线程静默 1s 后统一写一次盘。
+fn widget_geo_saver(app: AppHandle) {
+    let mut last_saved_ms = 0u64;
+    loop {
+        std::thread::sleep(Duration::from_millis(800));
+        let Some(s) = app.try_state::<Shared>() else { continue };
+        let dirty_ms = *s.widget_geo_dirty_ms.lock().unwrap();
+        if dirty_ms == 0 || dirty_ms == last_saved_ms {
+            continue;
+        }
+        if now_ms().saturating_sub(dirty_ms) < 1000 {
+            continue; // 还在拖动，继续等
+        }
+        // 先克隆再解锁：guard 的临时值生命周期不能跨到 s 释放之后
+        let geo = s.widget_geo.lock().unwrap().clone();
+        if let Some((x, y, w, h)) = geo {
+            let mut cfg = load_config();
+            cfg.widget.x = x;
+            cfg.widget.y = y;
+            cfg.widget.width = w;
+            cfg.widget.height = h;
+            if save_config_file(&cfg).is_ok() {
+                last_saved_ms = dirty_ms;
+            }
+        }
+    }
+}
+
 fn build_menu(app: &AppHandle, states: &[RepoState], failed: i64) -> tauri::Result<Menu<tauri::Wry>> {
     let mut items: Vec<Box<dyn IsMenuItem<tauri::Wry>>> = Vec::new();
     let title = if failed > 0 {
@@ -1560,6 +1843,18 @@ fn build_menu(app: &AppHandle, states: &[RepoState], failed: i64) -> tauri::Resu
     }
     items.push(Box::new(MenuItem::with_id(app, "panel", "面板 Panel", true, None::<&str>)?));
     items.push(Box::new(MenuItem::with_id(app, "manage", "管理 Manage", true, None::<&str>)?));
+    let widget_on = app
+        .try_state::<Shared>()
+        .map(|s| s.widget_enabled.load(Ordering::Relaxed))
+        .unwrap_or(false);
+    items.push(Box::new(CheckMenuItem::with_id(
+        app,
+        "widget-toggle",
+        "桌面组件 Widget",
+        true,
+        widget_on,
+        None::<&str>,
+    )?));
     items.push(Box::new(MenuItem::with_id(app, "refresh", "刷新 Refresh", true, None::<&str>)?));
     items.push(Box::new(PredefinedMenuItem::separator(app)?));
     items.push(Box::new(MenuItem::with_id(app, "quit", "退出 Quit", true, None::<&str>)?));
@@ -1620,6 +1915,13 @@ fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
     match id {
         "panel" => show_panel(app, false),
         "manage" => show_panel(app, true),
+        "widget-toggle" => {
+            let cur = app
+                .try_state::<Shared>()
+                .map(|s| s.widget_enabled.load(Ordering::Relaxed))
+                .unwrap_or(false);
+            set_widget_enabled_impl(app, !cur);
+        }
         "refresh" => wake(app),
         "quit" => app.exit(0),
         _ => {}
@@ -1907,6 +2209,45 @@ async fn save_config(app: AppHandle, config: Config) {
 #[tauri::command]
 fn refresh_now(app: AppHandle) {
     wake(&app);
+}
+
+#[tauri::command]
+fn set_widget_enabled(app: AppHandle, enable: bool) {
+    set_widget_enabled_impl(&app, enable);
+}
+
+#[tauri::command]
+fn reset_widget_position(app: AppHandle) {
+    reset_widget_position_impl(&app);
+}
+
+/// widget 图钉锁定切换：落盘持久化 + macOS 窗口级锁定（前端拖动手柄 guard 是主防线）
+#[tauri::command]
+fn widget_set_pinned(app: AppHandle, pinned: bool) {
+    let mut cfg = load_config();
+    cfg.widget.pinned = pinned;
+    let _ = save_config_file(&cfg);
+    if let Some(w) = app.get_webview_window(WIDGET_LABEL) {
+        #[cfg(target_os = "macos")]
+        apply_pin_lock(&w, pinned);
+        #[cfg(not(target_os = "macos"))]
+        let _ = &w;
+    }
+}
+
+/// widget 是否处于默认位置（屏幕中央）：首次开启、从未拖动过，或保存位置失效回退。
+/// 前端只在此时显示一次性拖动引导胶囊，首次拖动后由前端隐藏。
+#[tauri::command]
+fn widget_at_default(app: AppHandle) -> bool {
+    app.try_state::<Shared>()
+        .map(|s| s.widget_at_default.load(Ordering::Relaxed))
+        .unwrap_or(false)
+}
+
+/// widget 右键菜单「打开主面板」：唤起 panel（show_panel 是内部函数，包一层命令）
+#[tauri::command]
+fn show_panel_cmd(app: AppHandle) {
+    show_panel(&app, false);
 }
 
 #[tauri::command]
@@ -2286,6 +2627,29 @@ fn main() {
                     update_tray(app, &states);
                 }
             }
+            // widget 拖动/缩放去抖：事件只更新 Shared 待写值并标脏，
+            // 由 widget_geo_saver 线程静默 1s 后统一落盘（高频事件不能每次写盘）
+            if window.label() == WIDGET_LABEL {
+                let moved = matches!(
+                    event,
+                    tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+                );
+                if moved {
+                    let app = window.app_handle();
+                    if let Some(s) = app.try_state::<Shared>() {
+                        let k = window.scale_factor().unwrap_or(1.0).max(0.0001);
+                        if let (Ok(p), Ok(sz)) = (window.outer_position(), window.outer_size()) {
+                            *s.widget_geo.lock().unwrap() = Some((
+                                p.x as f64 / k,
+                                p.y as f64 / k,
+                                sz.width as f64 / k,
+                                sz.height as f64 / k,
+                            ));
+                            *s.widget_geo_dirty_ms.lock().unwrap() = now_ms();
+                        }
+                    }
+                }
+            }
         })
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -2298,12 +2662,17 @@ fn main() {
             macos_notify::init(app.handle().clone());
 
             let (tx, rx) = mpsc::channel::<()>();
+            let widget_cfg = load_config().widget;
             app.manage(Shared {
                 snapshot: Mutex::new(Vec::new()),
                 last_refresh_ms: Mutex::new(0),
                 refreshing: AtomicBool::new(false),
                 wake: Mutex::new(tx),
                 device_flow_cancel: Mutex::new(None),
+                widget_enabled: AtomicBool::new(widget_cfg.enabled),
+                widget_geo: Mutex::new(None),
+                widget_geo_dirty_ms: Mutex::new(0),
+                widget_at_default: AtomicBool::new(false),
             });
 
             // 先建隐藏面板窗口：托盘色块颜色要用它的 theme()（effectiveAppearance）探测系统深浅
@@ -2316,6 +2685,17 @@ fn main() {
                 .skip_taskbar(true)
                 .always_on_top(true)
                 .build()?;
+
+            // 桌面组件：上次会话开启过则恢复（位置/尺寸在 create_widget_window 内 clamp）
+            if widget_cfg.enabled {
+                if let Ok(w) = create_widget_window(app.handle(), &widget_cfg) {
+                    let _ = w.show();
+                }
+            }
+
+            // widget 拖动/缩放的几何信息去抖落盘线程
+            let geo_handle = app.handle().clone();
+            std::thread::spawn(move || widget_geo_saver(geo_handle));
 
             let menu = build_menu(app.handle(), &[], 0)?;
             TrayIconBuilder::with_id("main")
@@ -2369,7 +2749,12 @@ fn main() {
             check_update,
             app_version,
             device_flow_start,
-            device_flow_abort
+            device_flow_abort,
+            set_widget_enabled,
+            reset_widget_position,
+            widget_set_pinned,
+            widget_at_default,
+            show_panel_cmd
         ])
         .build(tauri::generate_context!())
         .expect("Glint 启动失败")

@@ -1,13 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Glint",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "identifier": "io.github.glint",
   "build": {
     "frontendDist": "../ui"
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [],
     "security": {
       "csp": null

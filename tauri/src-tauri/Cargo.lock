@@ -1473,12 +1473,13 @@ dependencies = [
 
 [[package]]
 name = "glint"
-version = "1.3.1"
+version = "1.4.0"
 dependencies = [
  "block2",
  "dirs 5.0.1",
  "keyring",
  "objc2",
+ "objc2-app-kit",
  "objc2-foundation",
  "objc2-user-notifications",
  "serde",
