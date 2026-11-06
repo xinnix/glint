@@ -1013,6 +1013,8 @@ async function init() {
     render();
     renderTokenInfo();
     checkUpdate();
+    // 每 12 小时自动重查更新：状态栏应用常驻不重启，启动时查一次远远不够
+    setInterval(checkUpdate, 12 * 60 * 60 * 1000);
   } catch (e) {
     report(`init failed: ${e}`);
   }
