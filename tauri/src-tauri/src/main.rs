@@ -1876,6 +1876,8 @@ fn update_tray(app: &AppHandle, states: &[RepoState]) {
 }
 
 fn show_panel(app: &AppHandle, manage: bool) {
+    // 打开面板即触发一次刷新：看到的是刚拉到的状态，而不是上次轮询的旧快照
+    wake(app);
     if manage {
         let _ = app.emit("show-manage", ());
     }
@@ -2782,6 +2784,8 @@ fn main() {
                                 position_panel_below_tray(&w, position, rect);
                                 let _ = w.show();
                                 let _ = w.set_focus();
+                                // 首次打开面板：顺手刷新一次，别让用户看上次轮询的旧数据
+                                wake(app);
                             }
                         }
                     }
