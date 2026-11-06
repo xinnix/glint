@@ -1237,11 +1237,21 @@ fn fetch_repo_inner(repo: &str, token: Option<&str>, light: bool, st: &mut RepoS
             &gh_url(&format!("/repos/{}/commits/{}/status", repo, ref_enc), &[]),
             token,
         )?;
-        st.status = match cv["state"].as_str().unwrap_or("") {
-            "success" => "success",
-            "failure" | "error" => "failed",
-            "pending" => "running",
-            _ => "no_checks",
+        // GitHub 对没有任何 status 的 commit 也返回 state=pending（statuses 为空），
+        // 不能据此判 running，应视为无 CI。
+        let no_statuses = cv["statuses"]
+            .as_array()
+            .map(|a| a.is_empty())
+            .unwrap_or(true);
+        st.status = if no_statuses {
+            "no_checks"
+        } else {
+            match cv["state"].as_str().unwrap_or("") {
+                "success" => "success",
+                "failure" | "error" => "failed",
+                "pending" => "running",
+                _ => "no_checks",
+            }
         }
         .into();
     }
@@ -1288,6 +1298,20 @@ fn fetch_repo_inner(repo: &str, token: Option<&str>, light: bool, st: &mut RepoS
         }
     }
     st.commit_subject = st.rows.first().map(|r| r.title.clone());
+
+    // head commit 没触发 CI（如 docs-only push 被 paths-ignore 跳过）时，
+    // 仓库点回退显示该分支最近一次真实 workflow run 的结果，避免与下方绿色记录相矛盾
+    if st.status == "no_checks" {
+        if let Some(first) = st.rows.first() {
+            st.status = match first.state.as_str() {
+                "success" => "success",
+                "failed" => "failed",
+                "running" => "running",
+                _ => "no_checks",
+            }
+            .into();
+        }
+    }
 
     // 失败时定位具体 job / step
     if st.status == "failed" {
