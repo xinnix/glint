@@ -4,6 +4,9 @@ All notable changes to Glint are documented here. Format: [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- **每 12 小时自动重查更新**：状态栏应用常驻不重启，原先仅启动时查一次会过期；到点自动检查并出升级横幅（ETag 缓存，重查零成本）
+
 （下一批：签名/公证、静默更新、Homebrew Cask、组织仓库、PR 视角）
 
 ## [1.3.1-beta.1] - 2026-11-06
