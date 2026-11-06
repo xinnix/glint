@@ -343,6 +343,18 @@ function renderRepoCard(container, s) {
   row.appendChild(el('span', 'name', s.repo));
   row.appendChild(el('span', 'spacer', ''));
 
+  // PR / Issues 数量徽章：仅非 0 时展示，不展开即可见 bug/反馈动静
+  const badges = el('span', 'row-badges');
+  const mkBadge = (ic, n, title) => {
+    const b = el('span', 'row-badge');
+    b.innerHTML = `${icon(ic, 10)}<span>${n}</span>`;
+    b.title = title;
+    return b;
+  };
+  if (s.open_prs > 0) badges.appendChild(mkBadge('git-pr', s.open_prs, `PR ${s.open_prs}`));
+  if (s.open_issues > 0) badges.appendChild(mkBadge('circle-dot', s.open_issues, `Issues ${s.open_issues}`));
+  if (badges.children.length) row.appendChild(badges);
+
   const statusEl = el('span', 'status-text', compactStatusText(s));
   statusEl.style.color = STATUS_COLOR[s.status] || 'var(--text-2)';
   row.appendChild(statusEl);
