@@ -196,15 +196,11 @@ main#repo-list, main.manage-body {
 .repo-row .chevron svg { width: 14px; height: 14px; }
 .repo-row .chevron.open { transform: rotate(90deg); }
 
-/* 行内 PR/Issues 数量徽章（仅非 0 显示） */
-.row-badges { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.row-badge {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 7px; border-radius: 999px;
-  background: var(--surface-2); color: var(--text-2);
-  font-size: 10.5px; font-weight: 600;
-}
-.row-badge svg { width: 10px; height: 10px; }
+/* 行内 PR/Issues 指示点（仅非 0 显示，两行竖排，颜色区分：紫=PR，橙=Issues） */
+.row-badges { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.row-dot { width: 7px; height: 7px; border-radius: 50%; }
+.row-dot.pr { background: var(--purple); }
+.row-dot.issue { background: var(--orange); }
 
 /* 展开详情 */
 .detail {

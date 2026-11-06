@@ -343,16 +343,18 @@ function renderRepoCard(container, s) {
   row.appendChild(el('span', 'name', s.repo));
   row.appendChild(el('span', 'spacer', ''));
 
-  // PR / Issues 数量徽章：仅非 0 时展示，不展开即可见 bug/反馈动静
+  // PR / Issues 存在指示点：仅非 0 时展示，颜色区分类型，悬停见确切数量
   const badges = el('span', 'row-badges');
-  const mkBadge = (ic, n, title) => {
-    const b = el('span', 'row-badge');
-    b.innerHTML = `${icon(ic, 10)}<span>${n}</span>`;
-    b.title = title;
-    return b;
-  };
-  if (s.open_prs > 0) badges.appendChild(mkBadge('git-pr', s.open_prs, `PR ${s.open_prs}`));
-  if (s.open_issues > 0) badges.appendChild(mkBadge('circle-dot', s.open_issues, `Issues ${s.open_issues}`));
+  if (s.open_prs > 0) {
+    const b = el('span', 'row-dot pr');
+    b.title = `PR ${s.open_prs}`;
+    badges.appendChild(b);
+  }
+  if (s.open_issues > 0) {
+    const b = el('span', 'row-dot issue');
+    b.title = `Issues ${s.open_issues}`;
+    badges.appendChild(b);
+  }
   if (badges.children.length) row.appendChild(badges);
 
   const statusEl = el('span', 'status-text', compactStatusText(s));
