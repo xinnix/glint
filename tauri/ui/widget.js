@@ -17,7 +17,7 @@ window.addEventListener('unhandledrejection', (e) => report(`widget rejection: $
 
 const I18N = {
   zh: {
-    refresh: '刷新', openPanel: '打开主面板', closeWidget: '关闭桌面组件',
+    refresh: '刷新', openPanel: '打开主面板', closeWidget: '关闭桌面组件', resetPos: '重置位置',
     emptyRepos: '还没有监控的仓库', addRepo: '添加仓库', noChecks: '无 CI',
     dragHint: '按住顶部拖到喜欢的位置',
     pin: '固定位置', unpin: '取消固定',
@@ -27,7 +27,7 @@ const I18N = {
     },
   },
   en: {
-    refresh: 'Refresh', openPanel: 'Open Panel', closeWidget: 'Close Widget',
+    refresh: 'Refresh', openPanel: 'Open Panel', closeWidget: 'Close Widget', resetPos: 'Reset Position',
     emptyRepos: 'No repositories yet', addRepo: 'Add Repository', noChecks: 'No CI',
     dragHint: 'Drag the header to place it anywhere',
     pin: 'Pin position', unpin: 'Unpin',
@@ -59,6 +59,7 @@ function tStatus(key) {
 function applyI18n() {
   document.getElementById('w-ctx-refresh').textContent = t('refresh');
   document.getElementById('w-ctx-panel').textContent = t('openPanel');
+  document.getElementById('w-ctx-reset').textContent = t('resetPos');
   document.getElementById('w-ctx-close').textContent = t('closeWidget');
   document.getElementById('w-hint').textContent = t('dragHint');
   applyPinUI();
@@ -260,7 +261,7 @@ function setupCtxMenu() {
     // 弹层定位在光标处，且不超出窗口
     const r = root.getBoundingClientRect();
     const mw = menu.offsetWidth || 150;
-    const mh = menu.offsetHeight || 110;
+    const mh = menu.offsetHeight || 140;
     const x = Math.min(e.clientX - r.left, r.width - mw - 6);
     const y = Math.min(e.clientY - r.top, r.height - mh - 6);
     menu.style.left = `${Math.max(4, x)}px`;
@@ -280,6 +281,11 @@ function setupCtxMenu() {
   document.getElementById('w-ctx-panel').addEventListener('click', () => {
     hideCtxMenu();
     invoke('show_panel_cmd');
+  });
+  // 移回屏幕中央（默认位置；找不到了 / 拖出屏幕外时用）
+  document.getElementById('w-ctx-reset').addEventListener('click', () => {
+    hideCtxMenu();
+    invoke('reset_widget_position');
   });
   document.getElementById('w-ctx-close').addEventListener('click', () => {
     hideCtxMenu();

@@ -42,9 +42,7 @@ const I18N = {
     autostart: '开机自启（登录时自动启动）',
     autostartOn: '已开启开机自启（下次登录生效）', autostartOff: '已关闭开机自启',
     autostartFailed: '设置失败：{msg}',
-    widgetSection: '桌面组件', widgetEnable: '在桌面显示状态组件',
-    widgetResetHint: '拖动头部移动，位置自动记忆', widgetResetPos: '重置位置',
-    widgetOn: '桌面组件已显示', widgetOff: '桌面组件已关闭', widgetResetDone: '组件已移回屏幕中央',
+    widgetToggle: '桌面组件',
     updateAvailable: '新版本 v{v} 可用', updateDownload: '下载',
     updateChip: '新版本 v{v}', viewRelease: '查看 Release 页',
     notesEmpty: '暂无更新说明',
@@ -102,9 +100,7 @@ const I18N = {
     autostart: 'Launch at login',
     autostartOn: 'Launch at login enabled (applies at next sign-in)', autostartOff: 'Launch at login disabled',
     autostartFailed: 'Failed to set: {msg}',
-    widgetSection: 'Desktop Widget', widgetEnable: 'Show status widget on desktop',
-    widgetResetHint: 'Drag the header to move; position is remembered', widgetResetPos: 'Reset Position',
-    widgetOn: 'Desktop widget shown', widgetOff: 'Desktop widget closed', widgetResetDone: 'Widget moved back to the center of the screen',
+    widgetToggle: 'Widget',
     updateAvailable: 'New version v{v} available', updateDownload: 'Download',
     updateChip: 'Update v{v}', viewRelease: 'View on GitHub',
     notesEmpty: 'No release notes',
@@ -266,6 +262,7 @@ const ICON_PATHS = {
   'circle-dot': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
   play: '<polygon points="6 3 20 12 6 21 6 3"/>',
   'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
 };
 
 function icon(name, size = 12) {
@@ -675,7 +672,6 @@ async function loadManage() {
   document.getElementById('notify-failure').checked = currentConfig.notify_on_failure;
   document.getElementById('notify-success').checked = currentConfig.notify_on_success;
   document.getElementById('autostart').checked = await invoke('autostart_state');
-  document.getElementById('widget-enabled').checked = !!(currentConfig.widget && currentConfig.widget.enabled);
   document.getElementById('client-id-input').value = currentConfig.oauth_client_id || '';
   document.getElementById('about-version').textContent = 'Glint v' + (await invoke('app_version'));
   renderManageRepos(currentConfig);
@@ -709,6 +705,11 @@ function applyAuthState(present) {
   } else if (!was || currentView === 'onboarding') {
     switchView('panel');
   }
+}
+
+// 面板底部桌面组件按钮的点亮态：绿底=组件已显示
+function renderWidgetToggle(enabled) {
+  document.getElementById('widget-toggle-btn').classList.toggle('on', !!enabled);
 }
 
 async function renderTokenInfo() {
@@ -985,24 +986,14 @@ function bindEvents() {
     }
   });
 
-  // 桌面组件开关：显隐由后端统一处理（建/隐窗口 + 写配置 + 重建托盘菜单）
-  document.getElementById('widget-enabled').addEventListener('change', async (e) => {
+  // 桌面组件开关（面板底部）：显隐由后端统一处理（建/隐窗口 + 写配置 + 重建托盘菜单），
+  // 按钮态由 widget-changed 事件统一回填（托盘 / 组件右键关闭也会走到同一后端入口）
+  document.getElementById('widget-toggle-btn').addEventListener('click', async () => {
+    const on = document.getElementById('widget-toggle-btn').classList.contains('on');
     try {
-      await invoke('set_widget_enabled', { enable: e.target.checked });
-      showManageMessage(t(e.target.checked ? 'widgetOn' : 'widgetOff'));
+      await invoke('set_widget_enabled', { enable: !on });
     } catch (err) {
-      e.target.checked = !e.target.checked;
-      showManageMessage(t('autostartFailed', { msg: String(err) }));
-    }
-  });
-
-  // 组件移回屏幕中央（默认位置；找不到了 / 拖出屏幕外时用）
-  document.getElementById('widget-reset-btn').addEventListener('click', async () => {
-    try {
-      await invoke('reset_widget_position');
-      showManageMessage(t('widgetResetDone'));
-    } catch (err) {
-      showManageMessage(t('autostartFailed', { msg: String(err) }));
+      report(`set_widget_enabled failed: ${err}`);
     }
   });
 
@@ -1087,6 +1078,9 @@ function bindEvents() {
   });
 
   listen('show-manage', () => switchView('manage'));
+
+  // 桌面组件显隐变化（托盘菜单 / 组件右键关闭 / 面板底部按钮共用），同步按钮点亮态
+  listen('widget-changed', (event) => renderWidgetToggle(!!event.payload));
 
   // 兜底轮询：面板可见时每 5 秒拉一次快照，防止事件丢失导致界面停留在旧状态
   setInterval(async () => {
@@ -1180,6 +1174,7 @@ async function init() {
     const cfg = await invoke('get_config');
     lang = cfg.lang || detectLang();
     currentConfig = cfg;
+    renderWidgetToggle(!!(cfg.widget && cfg.widget.enabled));
 
     snapshot = await invoke('get_snapshot');
     report(`init snapshot: ${snapshot.repos.length} repos, refreshing=${snapshot.refreshing}`);

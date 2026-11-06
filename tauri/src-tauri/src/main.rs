@@ -1773,6 +1773,8 @@ fn set_widget_enabled_impl(app: &AppHandle, enable: bool) {
         .map(|sh| sh.snapshot.lock().unwrap().clone())
         .unwrap_or_default();
     update_tray(app, &states);
+    // 广播给面板 webview：底部「桌面组件」按钮点亮态随托盘/组件右键/面板三处切换同步
+    let _ = app.emit("widget-changed", enable);
 }
 
 /// 组件移回屏幕中央（默认位置）。新位置经 Moved 事件由 saver 线程去抖落盘。

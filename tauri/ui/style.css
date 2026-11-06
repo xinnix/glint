@@ -146,6 +146,11 @@ button.secondary:hover { background: color-mix(in srgb, var(--text-3) 16%, trans
 .ghost-btn:active { filter: none; background: color-mix(in srgb, var(--text-3) 18%, transparent); }
 .ghost-btn.danger:hover { color: var(--red); background: var(--danger-bg); }
 
+/* 桌面组件开关（面板底部）：点亮态 = 组件已显示，品牌绿提示 */
+#widget-toggle-btn.on { color: var(--green); background: color-mix(in srgb, var(--green) 13%, transparent); }
+#widget-toggle-btn.on:hover { background: color-mix(in srgb, var(--green) 22%, transparent); }
+#widget-toggle-btn.on:active { background: color-mix(in srgb, var(--green) 28%, transparent); }
+
 /* ============ 状态徽章 ============ */
 
 .pill {

@@ -74,6 +74,7 @@
       <footer>
         <button id="manage-btn" class="ghost-btn"><span data-icon="settings"></span><span data-i18n="manage">管理</span></button>
         <button id="refresh-btn" class="ghost-btn"><span data-icon="refresh-cw"></span><span data-i18n="refresh">刷新</span></button>
+        <button id="widget-toggle-btn" class="ghost-btn"><span data-icon="monitor"></span><span data-i18n="widgetToggle">桌面组件</span></button>
         <span class="spacer"></span>
         <span id="token-info" class="muted small"></span>
         <button id="quit-btn" class="ghost-btn danger"><span data-icon="power"></span><span data-i18n="quit">退出</span></button>
@@ -143,23 +144,6 @@
               <span class="spacer"></span>
               <span class="switch"><input type="checkbox" id="autostart" /><span class="slider"></span></span>
             </label>
-          </div>
-        </section>
-
-        <!-- 桌面组件：贴桌面层的紧凑状态列表 -->
-        <section>
-          <div class="section-label" data-i18n="widgetSection">桌面组件</div>
-          <div class="group-card">
-            <label class="group-row switch-row">
-              <span class="row-text" data-i18n="widgetEnable">在桌面显示状态组件</span>
-              <span class="spacer"></span>
-              <span class="switch"><input type="checkbox" id="widget-enabled" /><span class="slider"></span></span>
-            </label>
-            <div class="group-row">
-              <span class="row-text muted" data-i18n="widgetResetHint">拖动头部移动，位置自动记忆</span>
-              <span class="spacer"></span>
-              <button id="widget-reset-btn" class="ghost-btn" data-i18n="widgetResetPos">重置位置</button>
-            </div>
           </div>
         </section>
 
